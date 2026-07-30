@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sigverify"
+version = "0.1.0"
+description = "Multi-modal (static image + dynamic stroke) AI signature verification and forensic reporting system"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Uttpal Tripathy" }]
+keywords = ["signature-verification", "biometrics", "siamese-network", "forgery-detection", "forensics"]
+
+dependencies = [
+    "torch>=2.2",
+    "torchvision>=0.17",
+    "ultralytics>=8.2",
+    "opencv-python-headless>=4.9",
+    "numpy>=1.26",
+    "scipy>=1.12",
+    "scikit-learn>=1.4",
+    "scikit-image>=0.22",
+    "shap>=0.45",
+    "matplotlib>=3.8",
+    "reportlab>=4.1",
+    "pydantic>=2.6",
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
+    "pyyaml>=6.0",
+    "tqdm>=4.66",
+    "pandas>=2.2",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "pytest-cov>=5.0", "ruff>=0.4", "httpx>=0.27"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+ignore = [
+    "B008",  # FastAPI's File(...)/Form(...)/Depends(...) defaults are the intended dependency-injection pattern
+]

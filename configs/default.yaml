@@ -1,0 +1,98 @@
+# Master configuration for the signature verification pipeline.
+# Sub-configs (configs/*.yaml) override sections of this file at train time.
+
+seed: 42
+device: "cuda"  # falls back to "cpu" automatically if no GPU is found
+
+preprocessing:
+  image:
+    target_size: [224, 224]
+    binarize_method: "otsu"        # otsu | adaptive | sauvola
+    deskew: true
+    denoise_h: 10                   # fastNlMeansDenoising strength
+  stroke:
+    resample_points: 256            # fixed-length resampling per stroke sequence
+    features: ["x", "y", "pressure", "velocity", "tilt_x", "tilt_y", "timestamp_delta"]
+    normalize: "zscore"             # zscore | minmax
+
+localization:
+  weights: "yolov8n.pt"             # swap for a signature-region fine-tuned checkpoint
+  conf_threshold: 0.25
+  imgsz: 640
+  fallback_full_frame: true         # if no box is detected, use the full image
+
+static_branch:
+  backbone: "resnet50"              # resnet50 | efficientnet_b0 | mobilenet_v3_large
+  embedding_dim: 256
+  pretrained: true
+  loss: "combined"                  # contrastive | triplet | combined
+  contrastive_margin: 1.0
+  triplet_margin: 0.3
+  freeze_backbone_epochs: 3
+
+dynamic_branch:
+  encoder: "transformer"            # lstm | gru | transformer
+  input_dim: 7                       # len(preprocessing.stroke.features)
+  hidden_dim: 256
+  num_layers: 3
+  num_heads: 8
+  bidirectional: true                # only applies to lstm/gru
+  dropout: 0.1
+  embedding_dim: 256
+
+fusion:
+  type: "cross_attention_gated"
+  num_heads: 4
+  dropout: 0.1
+  embedding_dim: 256
+  reliability_gating: true          # weight each modality by an estimated reliability score
+
+gan_augmentation:
+  type: "cyclegan"
+  # CycleGAN's generator runs 6x per training step (fake/recon/identity, both
+  # directions) at full image resolution, so it needs its own (much smaller) batch
+  # size and a lighter network than the embedding branches — the original CycleGAN
+  # paper itself trains at batch_size=1. These defaults are validated to run
+  # reliably on a modest CPU-only machine (<1GB free RAM); scale channels/blocks/
+  # batch_size up if you have a GPU or more memory available.
+  generator_channels: 32
+  discriminator_channels: 32
+  num_residual_blocks: 4
+  batch_size: 2
+  lambda_cycle: 10.0
+  lambda_identity: 0.5
+  closed_loop_retraining: true       # periodically mine verifier false negatives/positives back into GAN training
+
+anomaly_detection:
+  method: "isolation_forest"        # isolation_forest | one_class_svm
+  contamination: 0.05
+
+calibration:
+  method: "platt"                   # platt | slr
+  # Score-based Likelihood Ratio bin edges, used when method == "slr"
+  slr_bins: 20
+
+decision:
+  accept_threshold: 0.80
+  review_lower_bound: 0.55          # scores in [review_lower_bound, accept_threshold) => "Review"
+  reject_below: 0.55
+
+explainability:
+  gradcam_target_layer: "layer4"     # for resnet-family backbones
+  shap_background_samples: 50
+  top_k_deviant_strokes: 5
+
+audit_log:
+  enabled: true
+  path: "logs/audit_log.jsonl"
+  hash_algo: "sha256"
+
+training:
+  batch_size: 32
+  epochs: 50
+  lr: 3.0e-4
+  weight_decay: 1.0e-5
+  optimizer: "adamw"
+  scheduler: "cosine"
+  early_stopping_patience: 8
+  num_workers: 4

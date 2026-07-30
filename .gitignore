@@ -1,0 +1,61 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Environment / secrets
+.env
+.env.*
+
+# Datasets & large artifacts (bring your own data locally; never commit it)
+data/raw/
+data/processed/
+data/external/
+*.zip
+*.tar.gz
+
+# Model weights / checkpoints
+*.pt
+*.pth
+*.onnx
+*.h5
+checkpoints/
+runs/
+mlruns/
+outputs/
+
+# Generated reports & logs
+reports/
+logs/
+audit_log.jsonl
+*.log
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Local Claude Code session state
+.claude/
+
+# Coverage
+.coverage
+htmlcov/
