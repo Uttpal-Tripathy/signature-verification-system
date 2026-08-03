@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SIGNUM // Neural Signature Forensics</title>
+<meta name="description" content="Real-time multi-modal AI signature verification console." />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🛡️</text></svg>" />
+<link rel="stylesheet" href="css/theme.css" />
+</head>
+<body>
+<div class="scanline"></div>
+<div class="grid-bg"></div>
+<div class="vignette"></div>
+
+<header class="hdr">
+  <div class="hdr__brand">
+    <div class="hdr__mark" aria-hidden="true">
+      <svg viewBox="0 0 48 48" class="mark-svg">
+        <circle cx="24" cy="24" r="21" class="mark-ring" />
+        <path d="M10 28 Q16 14 24 24 T38 20" class="mark-stroke" />
+      </svg>
+    </div>
+    <div class="hdr__text">
+      <div class="hdr__title">SIGNUM<span class="hdr__cursor">_</span></div>
+      <div class="hdr__subtitle">NEURAL SIGNATURE FORENSICS // v0.1.0</div>
+    </div>
+  </div>
+  <div class="hdr__status">
+    <div class="status-pill" id="apiStatusPill">
+      <span class="status-dot" id="apiStatusDot"></span>
+      <span id="apiStatusText">CONNECTING&hellip;</span>
+    </div>
+    <div class="status-pill status-pill--ghost">
+      <span id="clock">00:00:00</span>
+    </div>
+  </div>
+</header>
+
+<main class="layout">
+
+  <!-- LEFT: reference enrollment -->
+  <section class="panel panel--reference" aria-labelledby="refTitle">
+    <div class="panel__head">
+      <h2 id="refTitle">01 // REFERENCE SAMPLE</h2>
+      <span class="panel__hint">enrolled baseline</span>
+    </div>
+
+    <label class="field">
+      <span class="field__label">WRITER ID</span>
+      <input type="text" id="writerId" class="field__input" placeholder="e.g. writer_003" autocomplete="off" />
+    </label>
+
+    <div class="dropzone" id="refDropzone" tabindex="0">
+      <input type="file" id="refFileInput" accept="image/*" hidden />
+      <div class="dropzone__inner" id="refDropInner">
+        <svg viewBox="0 0 24 24" class="dropzone__icon"><path d="M12 3v12m0-12 5 5m-5-5-5 5M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" /></svg>
+        <p>DROP OR CLICK TO UPLOAD<br /><span>enrolled reference image</span></p>
+      </div>
+      <img id="refPreviewImg" class="dropzone__preview" alt="" hidden />
+    </div>
+
+    <div class="mini-pad-wrap">
+      <div class="mini-pad-wrap__label">— or sign an enrollment sample —</div>
+      <canvas id="refPadCanvas" class="mini-pad" width="380" height="140"></canvas>
+      <div class="mini-pad-actions">
+        <button class="btn btn--ghost" id="refPadClear" type="button">CLEAR</button>
+        <button class="btn btn--ghost" id="refPadUse" type="button">USE AS REFERENCE</button>
+      </div>
+    </div>
+
+    <div class="toggles">
+      <label class="toggle">
+        <input type="checkbox" id="toggleLocalize" />
+        <span class="toggle__track"><span class="toggle__thumb"></span></span>
+        <span class="toggle__label">AUTO-LOCALIZE REGION (YOLOv8)</span>
+      </label>
+      <label class="toggle">
+        <input type="checkbox" id="toggleConfidence" />
+        <span class="toggle__track"><span class="toggle__thumb"></span></span>
+        <span class="toggle__label">COMPUTE CONFIDENCE INTERVAL (slower)</span>
+      </label>
+    </div>
+  </section>
+
+  <!-- CENTER: live capture -->
+  <section class="panel panel--capture" aria-labelledby="capTitle">
+    <div class="panel__head">
+      <h2 id="capTitle">02 // LIVE CAPTURE</h2>
+      <span class="panel__hint">stylus / touch / mouse — real-time stroke + image</span>
+    </div>
+
+    <div class="pad-frame">
+      <canvas id="mainPadCanvas" class="main-pad" width="900" height="380"></canvas>
+      <div class="pad-frame__corner tl"></div>
+      <div class="pad-frame__corner tr"></div>
+      <div class="pad-frame__corner bl"></div>
+      <div class="pad-frame__corner br"></div>
+      <div class="pad-frame__crosshair" id="padCrosshair" hidden></div>
+    </div>
+
+    <div class="telemetry">
+      <div class="telemetry__item">
+        <span class="telemetry__label">POINTS</span>
+        <span class="telemetry__value" id="telPoints">0</span>
+      </div>
+      <div class="telemetry__item">
+        <span class="telemetry__label">DURATION</span>
+        <span class="telemetry__value" id="telDuration">0.00s</span>
+      </div>
+      <div class="telemetry__item">
+        <span class="telemetry__label">AVG PRESSURE</span>
+        <span class="telemetry__value" id="telPressure">&mdash;</span>
+      </div>
+      <div class="telemetry__item">
+        <span class="telemetry__label">AVG VELOCITY</span>
+        <span class="telemetry__value" id="telVelocity">&mdash;</span>
+      </div>
+      <div class="telemetry__item">
+        <span class="telemetry__label">INPUT</span>
+        <span class="telemetry__value" id="telInputType">&mdash;</span>
+      </div>
+    </div>
+
+    <div class="capture-actions">
+      <button class="btn btn--ghost" id="mainPadClear" type="button">CLEAR PAD</button>
+      <button class="btn btn--primary" id="verifyBtn" type="button" disabled>
+        <span class="btn__glow"></span>
+        <span class="btn__label">RUN VERIFICATION</span>
+      </button>
+    </div>
+  </section>
+
+  <!-- RIGHT: analysis / HUD / results -->
+  <section class="panel panel--analysis" aria-labelledby="anaTitle">
+    <div class="panel__head">
+      <h2 id="anaTitle">03 // ANALYSIS</h2>
+      <span class="panel__hint">pipeline &amp; decision</span>
+    </div>
+
+    <div class="hud" id="hudLog">
+      <div class="hud__placeholder" id="hudPlaceholder">AWAITING VERIFICATION REQUEST&hellip;</div>
+    </div>
+
+    <div class="result" id="resultBlock" hidden>
+      <div class="result__badge" id="decisionBadge">
+        <span id="decisionLabel">—</span>
+      </div>
+
+      <div class="gauge-row">
+        <div class="gauge" id="scoreGauge">
+          <svg viewBox="0 0 120 70" class="gauge__svg">
+            <path d="M10 65 A55 55 0 0 1 110 65" class="gauge__track" />
+            <path d="M10 65 A55 55 0 0 1 110 65" class="gauge__fill" id="gaugeFill" />
+          </svg>
+          <div class="gauge__value" id="gaugeValue">0.00</div>
+          <div class="gauge__label">COMBINED SCORE</div>
+        </div>
+
+        <div class="modality-weights">
+          <div class="mw-row">
+            <span class="mw-row__label">STATIC</span>
+            <div class="mw-row__bar"><span id="mwStaticFill" style="width:0%"></span></div>
+            <span class="mw-row__pct" id="mwStaticPct">0%</span>
+          </div>
+          <div class="mw-row">
+            <span class="mw-row__label">DYNAMIC</span>
+            <div class="mw-row__bar"><span id="mwDynamicFill" style="width:0%"></span></div>
+            <span class="mw-row__pct" id="mwDynamicPct">0%</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="metrics-grid">
+        <div class="metric"><span class="metric__k">Fused similarity</span><span class="metric__v" id="mFused">—</span></div>
+        <div class="metric"><span class="metric__k">Static similarity</span><span class="metric__v" id="mStatic">—</span></div>
+        <div class="metric"><span class="metric__k">Dynamic similarity</span><span class="metric__v" id="mDynamic">—</span></div>
+        <div class="metric"><span class="metric__k">Calibrated score</span><span class="metric__v" id="mCalibrated">—</span></div>
+        <div class="metric"><span class="metric__k">Anomaly score</span><span class="metric__v" id="mAnomaly">—</span></div>
+        <div class="metric"><span class="metric__k">Confidence interval</span><span class="metric__v" id="mCI">—</span></div>
+      </div>
+
+      <div class="heatmap-block" id="heatmapBlock" hidden>
+        <span class="panel__hint">GRAD-CAM DEVIATION HEATMAP</span>
+        <img id="heatmapImg" alt="Grad-CAM heatmap" />
+      </div>
+
+      <div class="shap-block" id="shapBlock" hidden>
+        <span class="panel__hint">MODALITY CONTRIBUTION (SHAP)</span>
+        <div id="shapBars"></div>
+      </div>
+    </div>
+
+    <div class="error-block" id="errorBlock" hidden></div>
+  </section>
+</main>
+
+<footer class="ftr">
+  <span>SIGNUM NEURAL FORENSICS ENGINE</span>
+  <span class="ftr__sep">·</span>
+  <span>Apache-2.0</span>
+  <span class="ftr__sep">·</span>
+  <span id="ftrEndpoint">/api</span>
+</footer>
+
+<script src="js/signature-pad.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

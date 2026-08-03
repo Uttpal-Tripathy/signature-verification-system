@@ -1,36 +1,92 @@
-# Signature Verification System
+# SIGNUM — Neural Signature Forensics
 
 A multi-modal (static image **+** dynamic stroke) forensic signature verification
-pipeline: region localization → preprocessing → Siamese CNN + Transformer/LSTM
+system: region localization → preprocessing → Siamese CNN + Transformer/LSTM
 branches → cross-attention fusion → anomaly scoring → forensic calibration →
-explainable, audit-logged verification reports.
+explainable, audit-logged verification reports — plus **SIGNUM**, a real-time
+cyber-themed web console for it.
 
-See [`docs/architecture.md`](docs/architecture.md) for the full pipeline diagrams and
-the algorithm-to-literature-gap mapping this design is built against.
+[![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![CI](https://github.com/Uttpal-Tripathy/signature-verification-system/actions/workflows/ci.yml/badge.svg)](https://github.com/Uttpal-Tripathy/signature-verification-system/actions/workflows/ci.yml)
 
-> **On "accuracy":** this repository is a complete, working implementation of every
-> stage in the architecture — not a set of pretrained weights. Signature verification
-> accuracy comes from training each branch on real signature data (see
-> [`data/README.md`](data/README.md) for recommended public datasets); the included
-> `scripts/generate_demo_data.py` synthetic generator exists only to prove the
-> pipeline runs end-to-end, and numbers produced from it are not accuracy claims.
+> **Read this before quoting an accuracy number from this repo.** Every measured
+> result is in [`docs/results.md`](docs/results.md), reported as **skilled-forgery
+> accuracy** (hard, realistic) separately from **random-forgery accuracy** (easy,
+> commonly used to inflate claims) — with the exact writer count / epoch count /
+> dataset behind each number. Nothing here is asserted without a notebook or
+> script run backing it.
+
+## Contents
+
+- [What's implemented](#whats-implemented)
+- [Architecture](#architecture)
+- [The SIGNUM web console](#the-signum-web-console)
+- [Installation](#installation)
+- [Quickstart](#quickstart)
+- [Notebooks — train and test on real data](#notebooks--train-and-test-on-real-data)
+- [Results](#results)
+- [Research / patent-support documentation](#research--patent-support-documentation)
+- [Project layout](#project-layout)
+- [Testing](#testing)
+- [License](#license)
 
 ## What's implemented
 
 | Stage | Approach | Code |
 |---|---|---|
-| Region localization | YOLOv8 (Ultralytics), full-frame fallback | `src/sigverify/localization/` |
-| Preprocessing | Denoise → deskew → binarize → normalize (image); resample → z-score/min-max (stroke) | `src/sigverify/preprocessing/` |
-| Static verification | Siamese CNN (ResNet50/EfficientNet-B0/MobileNetV3), contrastive + triplet loss | `src/sigverify/models/static_branch.py` |
-| Dynamic verification | LSTM / GRU / Transformer encoder with attention pooling | `src/sigverify/models/dynamic_branch.py` |
-| Fusion | Cross-attention + reliability-gated residual combination | `src/sigverify/models/fusion.py` |
-| Forgery augmentation | CycleGAN + closed-loop failure-case mining | `src/sigverify/models/gan_forgery.py` |
-| Anomaly detection | One-Class SVM / Isolation Forest (per-writer) | `src/sigverify/models/anomaly.py` |
-| Calibration | Platt scaling / Score-based Likelihood Ratio | `src/sigverify/models/calibration.py` |
-| Explainability | Grad-CAM (static), attention + DTW deviation (dynamic), SHAP modality split | `src/sigverify/explainability/` |
-| Audit trail | Hash-chained tamper-evident ledger | `src/sigverify/audit/ledger.py` |
-| Reporting | PDF + JSON forensic verification report | `src/sigverify/pipeline/report.py` |
-| Serving | FastAPI `/verify` endpoint | `api/app.py` |
+| Region localization | YOLOv8 (Ultralytics), full-frame fallback | [`src/sigverify/localization/`](src/sigverify/localization/) |
+| Preprocessing | Denoise → deskew → binarize → normalize (image); resample → z-score/min-max (stroke) | [`src/sigverify/preprocessing/`](src/sigverify/preprocessing/) |
+| Static verification | Siamese CNN (ResNet50 / EfficientNet-B0 / MobileNetV3), contrastive + triplet loss | [`static_branch.py`](src/sigverify/models/static_branch.py) |
+| Dynamic verification | LSTM / GRU / Transformer encoder with attention pooling | [`dynamic_branch.py`](src/sigverify/models/dynamic_branch.py) |
+| Fusion | Cross-attention + reliability-gated residual combination, graceful single-modality fallback | [`fusion.py`](src/sigverify/models/fusion.py) |
+| Forgery augmentation | CycleGAN + closed-loop failure-case mining | [`gan_forgery.py`](src/sigverify/models/gan_forgery.py) |
+| Anomaly detection | One-Class SVM / Isolation Forest (per-writer) | [`anomaly.py`](src/sigverify/models/anomaly.py) |
+| Calibration | Platt scaling / Score-based Likelihood Ratio | [`calibration.py`](src/sigverify/models/calibration.py) |
+| Explainability | Grad-CAM (static), attention + DTW deviation (dynamic), SHAP modality split | [`src/sigverify/explainability/`](src/sigverify/explainability/) |
+| Audit trail | Hash-chained tamper-evident ledger | [`ledger.py`](src/sigverify/audit/ledger.py) |
+| Reporting | PDF + JSON forensic verification report | [`report.py`](src/sigverify/pipeline/report.py) |
+| Serving | FastAPI `/api/verify` + the SIGNUM web console | [`api/app.py`](api/app.py), [`web/`](web/) |
+
+## Architecture
+
+```mermaid
+flowchart TD
+    A[Input: image and/or live stroke capture] --> B[Preprocessing]
+    B --> C[Static branch — Siamese CNN]
+    B --> D[Dynamic branch — Transformer/LSTM]
+    C --> E[Cross-attention fusion + reliability gating]
+    D --> E
+    E --> F[Anomaly scoring]
+    E --> G[Similarity + calibration]
+    F --> H[Weighted decision fusion]
+    G --> H
+    H --> I[Explainability: Grad-CAM / attention+DTW / SHAP]
+    I --> J[Verification report + audit log]
+```
+
+Full diagrams (both the conceptual pipeline and the model-to-module mapping) and
+the design rationale for each choice: [`docs/architecture.md`](docs/architecture.md).
+
+## The SIGNUM web console
+
+A real-time verification console with a live signature pad (captures both the
+rendered image *and* the raw pointer-event stroke sequence — x/y/pressure/tilt/time
+— from a single signing action), a reference-enrollment panel, and a live HUD that
+walks through each pipeline stage as a request is processed.
+
+```bash
+uvicorn api.app:app --reload
+# open http://127.0.0.1:8000/
+```
+
+The console is a self-contained static site (`web/` — vanilla HTML/CSS/JS, no build
+step) served by the same FastAPI app that exposes the API under `/api/*`
+(`/api/verify`, `/api/health`, `/api/audit/verify_chain`). Its visual design — the
+color system, HUD/telemetry layout, and gauge components in
+[`web/css/theme.css`](web/css/theme.css) — is original work and a candidate
+starting point if you pursue design protection for the interface; that's a legal
+filing decision for you and, if you want it done properly, a patent attorney, not
+something this repo does for you.
 
 ## Installation
 
@@ -47,8 +103,10 @@ pip install -e ".[dev]"
 
 ## Quickstart
 
-**1. Generate a small synthetic dataset** (or point the steps below at a real
-dataset's manifest — see [`data/README.md`](data/README.md)):
+**1. Generate a small synthetic dataset** (fastest way to smoke-test the whole
+pipeline with zero downloads), or point the steps below at real data — see
+[`data/README.md`](data/README.md) for two real, directly-downloadable datasets
+(CEDAR, MOBISIG) and `scripts/prepare_real_datasets.py` to convert them:
 
 ```bash
 python scripts/generate_demo_data.py --output data/processed/demo --num-writers 20
@@ -72,6 +130,11 @@ python scripts/train_gan.py --manifest data/processed/demo/static_manifest.jsonl
 python scripts/evaluate.py  --static-manifest data/processed/demo/static_manifest.jsonl --checkpoints checkpoints
 ```
 
+Training on a small/medium real dataset that fits in RAM? Add `--cache-in-memory`
+to `train_static.py` — it preprocesses each image once instead of re-denoising it
+every epoch (a large speedup; see [`docs/results.md`](docs/results.md) for why this
+exists).
+
 **3. Run a verification and get a report:**
 
 ```bash
@@ -88,37 +151,106 @@ python scripts/run_inference.py \
 Produces `reports/case_001.pdf` (forensic report with Grad-CAM heatmap, confidence
 interval, modality contribution split) and `reports/case_001.json`.
 
-**4. Or serve it over HTTP:**
+**4. Or serve it over HTTP / the web console:**
 
 ```bash
 uvicorn api.app:app --reload
-curl -X POST http://127.0.0.1:8000/verify \
+curl -X POST http://127.0.0.1:8000/api/verify \
   -F "reference_image=@reference.png" -F "query_image=@query.png"
 ```
 
-## Evaluation methodology
+## Notebooks — train and test on real data
 
-Training/validation splits are **writer-disjoint** (`sigverify.data.datasets.split_writers`)
-so reported metrics reflect generalization to unseen writers, not memorization.
-Primary metrics are Equal Error Rate (EER) and ROC-AUC (`sigverify.utils.metrics`) —
-the standard benchmark metrics reported by CEDAR/GPDS/ICDAR/SVC2004/MOBISIG/DeepSignDB,
-so results are directly comparable to published baselines once trained on real data.
+`notebooks/` trains and evaluates on two **real, publicly downloaded** signature
+datasets (no Kaggle auth or gated request form needed — see
+[`data/README.md`](data/README.md)):
+
+| Notebook | What it does | Data |
+|---|---|---|
+| [`01_dataset_exploration.ipynb`](notebooks/01_dataset_exploration.ipynb) | Loads both datasets, visualizes genuine-vs-forged pairs, runs the real preprocessing pipeline | CEDAR + MOBISIG |
+| [`02_train_static_branch.ipynb`](notebooks/02_train_static_branch.ipynb) | Trains the Siamese CNN, plots loss/EER/AUC, PCA of the embedding space, Grad-CAM | CEDAR (static) |
+| [`03_train_dynamic_branch.ipynb`](notebooks/03_train_dynamic_branch.ipynb) | Trains the Transformer stroke encoder, attention-weight + DTW-deviation visualizations | MOBISIG (dynamic) |
+| [`04_fusion_and_evaluation.ipynb`](notebooks/04_fusion_and_evaluation.ipynb) | Re-confirms held-out test EER/AUC for both branches, trains the fusion layer, runs the full end-to-end pipeline | CEDAR + MOBISIG + synthetic bridge |
+| [`05_high_accuracy_training_and_evaluation.ipynb`](notebooks/05_high_accuracy_training_and_evaluation.ipynb) | Larger writer count + more epochs; reports skilled-forgery vs. random-forgery accuracy **separately** | CEDAR (static) |
+
+Run them in order — 03 depends on nothing from 02, but 04/05 load checkpoints from
+`notebooks/artifacts/`. Notebooks 01-04 are deliberately scaled down (a handful of
+writers, a few epochs, a lighter backbone) so they finish in minutes on a CPU-only
+machine; 05 trains longer for a more meaningful number. See each notebook's first
+cell for exactly what's reduced and how to scale back up. **On fusion**: CEDAR and
+MOBISIG are two independent datasets with no writer overlap and no shared physical
+signing events, so notebook 04 trains the fusion layer on paired synthetic data as
+a documented bridge — see its markdown cells for the full reasoning.
+
+```bash
+pip install jupyter nbclient ipykernel
+python -m ipykernel install --user --name sigverify-venv --display-name "Python 3 (sigverify)"
+jupyter lab notebooks/
+```
+
+### From the notebooks (real data, real runs)
+
+| CEDAR: genuine vs. skilled forgery | Preprocessing: raw scan → normalized |
+|---|---|
+| ![CEDAR genuine vs forged](docs/images/01_01.png) | ![preprocessing pipeline](docs/images/01_02.png) |
+
+| MOBISIG: genuine vs. forged stroke trajectory | Stroke resampling + normalization |
+|---|---|
+| ![MOBISIG stroke trajectories](docs/images/01_03.png) | ![stroke preprocessing](docs/images/01_04.png) |
+
+| Static branch training (real CEDAR) | Embedding space (PCA) | Grad-CAM |
+|---|---|---|
+| ![static training curves](docs/images/02_01.png) | ![PCA embeddings](docs/images/02_02.png) | ![Grad-CAM](docs/images/02_03.png) |
+
+| Dynamic branch training (real MOBISIG) | Attention weights | DTW stroke deviation |
+|---|---|---|
+| ![dynamic training curves](docs/images/03_01.png) | ![attention weights](docs/images/03_02.png) | ![DTW deviation](docs/images/03_03.png) |
+
+## Results
+
+Full methodology, every number, and what it would take to get a production-scale
+number: **[`docs/results.md`](docs/results.md)**. Short version: the quick-demo
+notebooks (5-8 writers, a few epochs) exist to prove the pipeline trains correctly
+on real data, not to claim accuracy — one of them visibly misclassifies a held-out
+skilled forgery, which is *exactly* what an intentionally under-trained checkpoint
+should do. `05_high_accuracy_training_and_evaluation.ipynb` trains further and
+reports skilled-forgery and random-forgery accuracy as two separate, clearly
+labeled numbers rather than one blended figure.
+
+## Research / patent-support documentation
+
+[`docs/technical_disclosure.md`](docs/technical_disclosure.md) describes the
+system's candidate points of novelty (the reliability-gated fusion mechanism, the
+closed-loop adversarial forgery augmentation, the dual-signal explainability
+scoring, and others) as a starting point for a patent attorney or a research
+paper's methods section. It is **not** a patent application and doesn't claim to
+be "patent-ready" — that determination requires an actual attorney and a prior-art
+search this repo hasn't done.
 
 ## Project layout
 
 ```
-src/sigverify/
-├── preprocessing/     # image + stroke preprocessing
-├── localization/       # YOLOv8 signature-region detector
-├── models/             # static/dynamic branches, fusion, GAN, anomaly, calibration, losses
-├── explainability/      # Grad-CAM, attention/DTW deviation, SHAP
-├── data/                # manifest-driven datasets + synthetic demo generator
-├── pipeline/            # end-to-end inference + report generation
-└── audit/                # hash-chained audit ledger
-scripts/                 # train_*.py, fit_calibration.py, evaluate.py, run_inference.py
-api/                     # FastAPI service
-configs/default.yaml     # all hyperparameters in one place
-tests/                   # pytest suite (preprocessing, models, pipeline, audit, metrics)
+├── api/                  # FastAPI service (mounts web/ + exposes /api/*)
+├── configs/              # default.yaml (full-scale) + lightweight_real.yaml (CPU demo scale)
+├── data/                 # dataset docs; raw/processed data is git-ignored
+├── docs/
+│   ├── architecture.md          # pipeline diagrams + design rationale
+│   ├── results.md                # every measured number, methodology, honest caveats
+│   ├── technical_disclosure.md   # research/patent-support technical description
+│   └── images/                   # plots extracted from the executed notebooks
+├── notebooks/            # 01-05: train + test on real CEDAR/MOBISIG data
+├── scripts/              # train_*.py, fit_calibration.py, evaluate.py, run_inference.py,
+│                         # prepare_real_datasets.py, generate_demo_data.py
+├── src/sigverify/
+│   ├── preprocessing/    # image + stroke preprocessing
+│   ├── localization/     # YOLOv8 signature-region detector
+│   ├── models/           # static/dynamic branches, fusion, GAN, anomaly, calibration, losses
+│   ├── explainability/   # Grad-CAM, attention/DTW deviation, SHAP
+│   ├── data/             # manifest-driven datasets + synthetic demo generator
+│   ├── pipeline/         # end-to-end inference + report generation
+│   └── audit/            # hash-chained audit ledger
+├── tests/                # pytest suite (preprocessing, models, pipeline, audit, metrics)
+└── web/                  # SIGNUM console — vanilla HTML/CSS/JS, no build step
 ```
 
 ## Testing

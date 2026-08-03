@@ -1,11 +1,13 @@
-"""FastAPI service exposing the signature verification pipeline over HTTP.
+"""FastAPI service exposing the signature verification pipeline over HTTP, and
+serving the SIGNUM web console (web/) as the root static site.
 
 Run with:
     uvicorn api.app:app --host 0.0.0.0 --port 8000
+Then open http://127.0.0.1:8000/ for the console; the API lives under /api/*.
 
 Environment variables:
-    SIGVERIFY_CONFIG      path to the YAML config (default: configs/default.yaml)
-    SIGVERIFY_CHECKPOINTS path to the checkpoint directory (default: checkpoints/)
+    SIGVERIFY_CONFIG      path to the YAML config (default: configs/lightweight_real.yaml)
+    SIGVERIFY_CHECKPOINTS path to the checkpoint directory (default: checkpoints_real/)
 """
 from __future__ import annotations
 
@@ -13,10 +15,12 @@ import base64
 import json
 import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import cv2
 import numpy as np
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, FastAPI, File, Form, HTTPException, UploadFile
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from sigverify.audit.ledger import AuditLedger
@@ -28,12 +32,13 @@ from sigverify.utils.logging import get_logger
 logger = get_logger(__name__)
 
 STATE: dict = {}
+WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    config_path = os.environ.get("SIGVERIFY_CONFIG", "configs/default.yaml")
-    checkpoint_dir = os.environ.get("SIGVERIFY_CHECKPOINTS", "checkpoints")
+    config_path = os.environ.get("SIGVERIFY_CONFIG", "configs/lightweight_real.yaml")
+    checkpoint_dir = os.environ.get("SIGVERIFY_CHECKPOINTS", "checkpoints_real")
     cfg = load_config(config_path)
     STATE["config"] = cfg
     STATE["bundle"] = SignatureVerificationBundle(cfg, checkpoint_dir=checkpoint_dir).eval_mode()
@@ -43,7 +48,8 @@ async def lifespan(app: FastAPI):
     STATE.clear()
 
 
-app = FastAPI(title="Signature Verification System", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="SIGNUM — Neural Signature Forensics", version="0.1.0", lifespan=lifespan)
+api = APIRouter(prefix="/api")
 
 
 class VerifyResponse(BaseModel):
@@ -61,7 +67,7 @@ class VerifyResponse(BaseModel):
     static_heatmap_png_base64: str | None
 
 
-@app.get("/health")
+@api.get("/health")
 def health() -> dict:
     return {"status": "ok", "device": str(STATE["bundle"].device) if "bundle" in STATE else "not_loaded"}
 
@@ -83,7 +89,7 @@ def _heatmap_to_base64(heatmap: np.ndarray) -> str:
     return base64.b64encode(buf.tobytes()).decode("ascii")
 
 
-@app.post("/verify", response_model=VerifyResponse)
+@api.post("/verify", response_model=VerifyResponse)
 async def verify(
     reference_image: UploadFile = File(...),
     query_image: UploadFile = File(...),
@@ -133,8 +139,14 @@ async def verify(
     )
 
 
-@app.get("/audit/verify_chain")
+@api.get("/audit/verify_chain")
 def verify_audit_chain() -> dict:
     if STATE.get("ledger") is None:
         raise HTTPException(status_code=404, detail="Audit logging is disabled")
     return STATE["ledger"].verify_chain()
+
+
+app.include_router(api)
+
+if WEB_DIR.exists():
+    app.mount("/", StaticFiles(directory=str(WEB_DIR), html=True), name="web")

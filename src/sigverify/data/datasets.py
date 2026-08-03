@@ -62,12 +62,20 @@ class StaticSignatureTripletDataset(Dataset):
         target_size: tuple[int, int] = (224, 224),
         impostor_ratio: float = 0.5,
         writer_ids: set[str] | None = None,
+        cache_in_memory: bool = False,
     ):
         self.records = load_manifest(manifest_path)
         if writer_ids is not None:
             self.records = [r for r in self.records if r["writer_id"] in writer_ids]
         self.target_size = target_size
         self.impostor_ratio = impostor_ratio
+        # Denoising dominates preprocessing cost (~0.4s/image) and is re-paid on every
+        # __getitem__ call by default, i.e. every epoch. For datasets small enough to
+        # fit in RAM (a few thousand images), caching the preprocessed tensor after
+        # its first load turns every epoch after the first into pure compute — a large
+        # speedup with no effect on what the model sees (identical output).
+        self.cache_in_memory = cache_in_memory
+        self._image_cache: dict[str, torch.Tensor] = {}
 
         self.by_writer_genuine: dict[str, list[dict]] = {}
         self.by_writer_forged: dict[str, list[dict]] = {}
@@ -84,11 +92,16 @@ class StaticSignatureTripletDataset(Dataset):
         return len(self.anchors)
 
     def _load_image(self, path: str) -> torch.Tensor:
+        if self.cache_in_memory and path in self._image_cache:
+            return self._image_cache[path]
         raw = cv2.imread(path, cv2.IMREAD_UNCHANGED)
         if raw is None:
             raise FileNotFoundError(path)
         processed = preprocess_signature_image(raw, target_size=self.target_size)
-        return torch.from_numpy(processed).unsqueeze(0)  # (1, H, W)
+        tensor = torch.from_numpy(processed).unsqueeze(0)  # (1, H, W)
+        if self.cache_in_memory:
+            self._image_cache[path] = tensor
+        return tensor
 
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         anchor_rec = self.anchors[idx]

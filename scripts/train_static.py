@@ -52,6 +52,7 @@ def main() -> None:
     parser.add_argument("--config", default="configs/default.yaml")
     parser.add_argument("--output", default="checkpoints")
     parser.add_argument("--epochs", type=int, default=None)
+    parser.add_argument("--cache-in-memory", action="store_true", help="Preprocess each image once and cache it in RAM instead of re-denoising every epoch — worthwhile whenever the dataset is small enough to fit (a few thousand images)")
     args = parser.parse_args()
 
     cfg = load_config(args.config)
@@ -62,8 +63,8 @@ def main() -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     train_writers, val_writers = split_writers(args.manifest, val_fraction=0.2, seed=cfg.seed)
-    train_ds = StaticSignatureTripletDataset(args.manifest, target_size=tuple(cfg.preprocessing.image.target_size), writer_ids=train_writers)
-    val_ds = StaticSignatureTripletDataset(args.manifest, target_size=tuple(cfg.preprocessing.image.target_size), writer_ids=val_writers)
+    train_ds = StaticSignatureTripletDataset(args.manifest, target_size=tuple(cfg.preprocessing.image.target_size), writer_ids=train_writers, cache_in_memory=args.cache_in_memory)
+    val_ds = StaticSignatureTripletDataset(args.manifest, target_size=tuple(cfg.preprocessing.image.target_size), writer_ids=val_writers, cache_in_memory=args.cache_in_memory)
     train_batch_size, train_drop_last = safe_batch_size_and_drop_last(len(train_ds), cfg.training.batch_size)
     val_batch_size, _ = safe_batch_size_and_drop_last(len(val_ds), cfg.training.batch_size)
     train_loader = DataLoader(train_ds, batch_size=train_batch_size, shuffle=True, num_workers=0, drop_last=train_drop_last)

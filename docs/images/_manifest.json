@@ -1,0 +1,52 @@
+[
+  {
+    "notebook": "01_dataset_exploration.ipynb",
+    "cell_index": 5,
+    "file": "01_01.png"
+  },
+  {
+    "notebook": "01_dataset_exploration.ipynb",
+    "cell_index": 7,
+    "file": "01_02.png"
+  },
+  {
+    "notebook": "01_dataset_exploration.ipynb",
+    "cell_index": 11,
+    "file": "01_03.png"
+  },
+  {
+    "notebook": "01_dataset_exploration.ipynb",
+    "cell_index": 13,
+    "file": "01_04.png"
+  },
+  {
+    "notebook": "02_train_static_branch.ipynb",
+    "cell_index": 10,
+    "file": "02_01.png"
+  },
+  {
+    "notebook": "02_train_static_branch.ipynb",
+    "cell_index": 12,
+    "file": "02_02.png"
+  },
+  {
+    "notebook": "02_train_static_branch.ipynb",
+    "cell_index": 14,
+    "file": "02_03.png"
+  },
+  {
+    "notebook": "03_train_dynamic_branch.ipynb",
+    "cell_index": 8,
+    "file": "03_01.png"
+  },
+  {
+    "notebook": "03_train_dynamic_branch.ipynb",
+    "cell_index": 10,
+    "file": "03_02.png"
+  },
+  {
+    "notebook": "03_train_dynamic_branch.ipynb",
+    "cell_index": 12,
+    "file": "03_03.png"
+  }
+]

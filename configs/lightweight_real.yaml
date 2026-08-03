@@ -1,0 +1,94 @@
+# Lightweight config used for training on the real CEDAR/MOBISIG data on CPU-only,
+# memory-constrained hardware — the same architecture the notebooks in notebooks/
+# train, and what the live product's bundled checkpoints (checkpoints_real/) use.
+# See configs/default.yaml for the full-scale production defaults (ResNet50, 224x224,
+# 50 epochs) intended for GPU training on the complete datasets.
+
+seed: 42
+device: "cpu"
+
+preprocessing:
+  image:
+    target_size: [128, 128]
+    binarize_method: "otsu"
+    deskew: true
+    denoise_h: 10
+  stroke:
+    resample_points: 256
+    features: ["x", "y", "pressure", "velocity", "tilt_x", "tilt_y", "timestamp_delta"]
+    normalize: "zscore"
+
+localization:
+  weights: "yolov8n.pt"
+  conf_threshold: 0.25
+  imgsz: 640
+  fallback_full_frame: true
+
+static_branch:
+  backbone: "mobilenet_v3_large"
+  embedding_dim: 128
+  pretrained: true
+  loss: "combined"
+  contrastive_margin: 1.0
+  triplet_margin: 0.3
+  freeze_backbone_epochs: 1
+
+dynamic_branch:
+  encoder: "transformer"
+  input_dim: 7
+  hidden_dim: 128
+  num_layers: 2
+  num_heads: 4
+  bidirectional: true
+  dropout: 0.1
+  embedding_dim: 128
+
+fusion:
+  type: "cross_attention_gated"
+  num_heads: 4
+  dropout: 0.1
+  embedding_dim: 128
+  reliability_gating: true
+
+gan_augmentation:
+  type: "cyclegan"
+  generator_channels: 32
+  discriminator_channels: 32
+  num_residual_blocks: 4
+  batch_size: 2
+  lambda_cycle: 10.0
+  lambda_identity: 0.5
+  closed_loop_retraining: true
+
+anomaly_detection:
+  method: "isolation_forest"
+  contamination: 0.05
+
+calibration:
+  method: "platt"
+  slr_bins: 20
+
+decision:
+  accept_threshold: 0.80
+  review_lower_bound: 0.55
+  reject_below: 0.55
+
+explainability:
+  gradcam_target_layer: "layer4"
+  shap_background_samples: 50
+  top_k_deviant_strokes: 5
+
+audit_log:
+  enabled: true
+  path: "logs/audit_log.jsonl"
+  hash_algo: "sha256"
+
+training:
+  batch_size: 8
+  epochs: 6
+  lr: 3.0e-4
+  weight_decay: 1.0e-5
+  optimizer: "adamw"
+  scheduler: "cosine"
+  early_stopping_patience: 4
+  num_workers: 0
