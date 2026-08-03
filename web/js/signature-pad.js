@@ -39,8 +39,20 @@ class SignaturePad {
     const dpr = window.devicePixelRatio || 1;
     const targetW = Math.round(rect.width * dpr);
     const targetH = Math.round(rect.height * dpr);
-    if (this.canvas.width !== targetW || this.canvas.height !== targetH) {
-      // Preserve drawing across resizes by redrawing from recorded points.
+    const oldW = this.canvas.width;
+    const oldH = this.canvas.height;
+    if (oldW !== targetW || oldH !== targetH) {
+      // Recorded points are in the OLD canvas's pixel space. Without rescaling
+      // them, a mid-session resize (responsive layout, window resize) would
+      // redraw the signature shifted/distorted relative to the new box.
+      if (oldW > 0 && oldH > 0 && this.points.length > 0) {
+        const scaleX = targetW / oldW;
+        const scaleY = targetH / oldH;
+        for (const p of this.points) {
+          p.x *= scaleX;
+          p.y *= scaleY;
+        }
+      }
       this.canvas.width = targetW;
       this.canvas.height = targetH;
       this._redraw();

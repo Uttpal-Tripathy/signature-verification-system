@@ -3,7 +3,8 @@
  * drives the pipeline HUD, and renders the forensic result panel.
  */
 (() => {
-  const API_BASE = window.location.origin.includes("null") ? "" : "";
+  // Always same-origin: api/app.py mounts this static site and the API on one FastAPI app.
+  const API_BASE = "";
   const HUD_STAGES = [
     "REGION LOCALIZATION",
     "PREPROCESSING (denoise / deskew / binarize)",
