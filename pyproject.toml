@@ -26,6 +26,7 @@ dependencies = [
     "reportlab>=4.1",
     "pydantic>=2.6",
     "fastapi>=0.110",
+    "python-multipart>=0.0.9",  # required by FastAPI for the File()/Form() uploads api/app.py's /verify endpoint uses
     "uvicorn[standard]>=0.29",
     "pyyaml>=6.0",
     "tqdm>=4.66",

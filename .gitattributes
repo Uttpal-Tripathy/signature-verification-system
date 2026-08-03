@@ -1,0 +1,12 @@
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.pt binary
+*.pth binary
+*.woff binary
+*.woff2 binary
+
+*.ipynb -diff

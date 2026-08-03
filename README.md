@@ -217,6 +217,37 @@ should do. `05_high_accuracy_training_and_evaluation.ipynb` trains further and
 reports skilled-forgery and random-forgery accuracy as two separate, clearly
 labeled numbers rather than one blended figure.
 
+### Live-product checkpoints (`checkpoints_real/`)
+
+Produced by the actual training scripts (`scripts/train_static.py --cache-in-memory`,
+`train_dynamic.py`), not the illustrative notebook loops — real numbers, writer-disjoint
+validation split, on real CEDAR/MOBISIG data:
+
+| Component | Writers | Val EER (mixed) | Val AUC (mixed) | Val accuracy @ EER |
+|---|---|---|---|---|
+| Static branch (CEDAR) | 25 | 0.221 | 0.866 | **77.9%** |
+| Dynamic branch (MOBISIG) | 20 | 0.161 | 0.892 | **83.9%** |
+
+### Performance & resource metrics
+
+| Component | Config | Parameters | Checkpoint size |
+|---|---|---|---|
+| Static branch | ResNet50 / 224px | 24.7M | ~99 MB |
+| Static branch | MobileNetV3-L / 64-128px (CPU-friendly) | 3.5M | 14.3 MB |
+| Dynamic branch | Transformer, hidden=256, 3 layers | 2.7M | ~11 MB |
+| Dynamic branch | Transformer, hidden=128, 2 layers (CPU-friendly) | 0.48M | 2.5 MB |
+| Fusion | Cross-attention gated, 256-dim | 0.66M | 0.67 MB |
+
+| Request (CPU-only, lightweight config) | Mean latency |
+|---|---|
+| Static image only | 1.40 s |
+| Static + dynamic (stroke) | 1.47 s |
+| Static + dynamic + full explainability | 1.76 s |
+
+Full breakdown (including *why* `--cache-in-memory` exists — denoising a real scan
+costs more than the entire forward+backward pass) in
+[`docs/results.md`](docs/results.md#performance--resource-metrics).
+
 ## Research / patent-support documentation
 
 [`docs/technical_disclosure.md`](docs/technical_disclosure.md) describes the

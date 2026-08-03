@@ -67,6 +67,62 @@ a real improvement from correct methodology, not from trying more seeds until
 a bigger number came out. Even the corrected numbers are a mid-scale checkpoint,
 not a production result — see below for what closes that gap.
 
+## Live product checkpoints (`checkpoints_real/`, used by the SIGNUM web console)
+
+These are produced by the actual production training scripts (not the notebooks'
+ad-hoc loops), which already implement backbone freeze/unfreeze scheduling and
+best-checkpoint early stopping correctly — which is visible in the result: both
+branches score noticeably better here than the illustrative notebook runs above,
+on a comparable writer count.
+
+| Component | Command | Writers | Best epoch | Val EER (mixed) | Val AUC (mixed) | Val acc. @ EER |
+|---|---|---|---|---|---|---|
+| Static (CEDAR) | `scripts/train_static.py --cache-in-memory` | 25 (20 train / 5 val) | 1 / 15 | 0.2208 | 0.8658 | **0.7792** |
+| Dynamic (MOBISIG) | `scripts/train_dynamic.py` | 20 (16 train / 4 val) | 1 / 15 | 0.1611 | 0.8921 | **0.8389** |
+| Fusion | `scripts/train_fusion.py` (synthetic bridge, see notebook 04) | — | 5 / 6 | 0.0000* | 1.0000* | — |
+
+\* Fusion's validation set is 4 synthetic triplets — an EER of exactly 0 there
+reflects a nearly-trivial validation split, not a claim that fusion is solved;
+don't cite it.
+
+Both branches' best checkpoint was epoch 1 again (see the "why" note above — an
+ImageNet-pretrained backbone's out-of-the-box embedding dominates at this data
+scale), though this time backbone freezing during epoch 1 and unfreezing
+afterward, plus a real early-stopping loop, produced a meaningfully better
+epoch-1 result than the notebook's fixed-schedule loop did.
+
+## Performance & resource metrics
+
+Parameter counts (measured directly via `sum(p.numel() for p in model.parameters())`)
+and checkpoint file sizes:
+
+| Component | Config | Parameters | Checkpoint size |
+|---|---|---|---|
+| Static branch | ResNet50 / 224px (`configs/default.yaml`) | 24,689,472 | ~99 MB (fp32) |
+| Static branch | MobileNetV3-Large / 64-128px (`configs/lightweight_real.yaml`) | 3,530,672 | 14.3 MB |
+| Dynamic branch | Transformer, hidden=256, 3 layers, 8 heads (`configs/default.yaml`) | 2,701,056 | ~11 MB (fp32) |
+| Dynamic branch | Transformer, hidden=128, 2 layers, 4 heads (`configs/lightweight_real.yaml`) | 480,512 | 2.5 MB |
+| Fusion | Cross-attention gated, 256-dim | 658,946 | 0.67 MB (128-dim variant) |
+| GAN (train-time only) | 2 generators + 2 discriminators, 32 channels, 4 residual blocks | 4,123,332 | 16.5 MB |
+
+End-to-end inference latency, measured with `verify_signature()` on the
+lightweight config, CPU-only (this host's 2-core, memory-constrained VM —
+expect materially better latency on typical deployment hardware, and much
+better with a GPU for the static branch's CNN forward pass):
+
+| Request type | Mean latency | Std. dev. |
+|---|---|---|
+| Static image only, no explainability | 1.40 s | 0.11 s |
+| Static + dynamic (stroke), no explainability | 1.47 s | 0.15 s |
+| Static + dynamic, with Grad-CAM + attention/DTW explainability | 1.76 s | 0.23 s |
+| + confidence interval (7-round test-time augmentation) | adds ~7x the base static-branch cost | — |
+
+Preprocessing cost (why `--cache-in-memory` exists): denoising a real, full-resolution
+scanned signature (CEDAR averages ~385x534px) takes **~0.4-1.6s per image** on this
+host — more than the entire model forward+backward pass (~0.35s for a batch of 8 at
+64px). That cost is paid once per image with `--cache-in-memory`; without it, every
+epoch re-denoises every image from scratch.
+
 ## What it would take to get a production-citable number
 
 - Full writer counts (55 CEDAR, 83 MOBISIG — or a larger benchmark like
