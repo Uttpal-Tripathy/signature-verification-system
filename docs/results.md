@@ -91,6 +91,76 @@ scale), though this time backbone freezing during epoch 1 and unfreezing
 afterward, plus a real early-stopping loop, produced a meaningfully better
 epoch-1 result than the notebook's fixed-schedule loop did.
 
+## v2: full dataset + data augmentation — a real experiment, an honest result
+
+After the numbers above, the obvious next lever was "use all the data, and add
+augmentation to fight the epoch-1-is-already-best overfitting pattern." Two
+changes, both real: `StaticSignatureTripletDataset` gained a `random_affine_jitter`
+augmentation path (`--augment` on `train_static.py`, small random
+rotation/translation/scale applied fresh every epoch, never at eval time — see
+`src/sigverify/preprocessing/image_preprocess.py`), and both branches were
+retrained on **every** writer in each dataset (55 CEDAR, 83 MOBISIG) instead of a
+subset.
+
+| Component | Writers | Best epoch | Val EER (mixed) | Val AUC (mixed) | Val acc. @ EER | vs. v1 |
+|---|---|---|---|---|---|---|
+| Static (CEDAR, +augment) | 55 (44 train / 11 val) | 2 / 6 (early-stopped) | 0.2670 | 0.8215 | **0.7330** | -4.6 points |
+| Dynamic (MOBISIG) | 83 (67 train / 16 val)† | 8 / 25‡ | 0.1993 | 0.8786 | **0.8007** | -3.8 points |
+
+† 83-writer split: 67 train / 16 val. ‡ This run was cut short mid-epoch-9 by an
+environment interruption (not a training failure) — epoch 8's checkpoint is the
+last completed, best-so-far result and is reported as-is; it may not represent
+final convergence.
+
+**Full data + augmentation did not beat the smaller run.** This is the direct,
+unedited result — not rounded down for effect. A plausible explanation: early
+stopping (patience 4) cut both runs short (epoch 6 and epoch 8/9 respectively)
+before augmentation's regularization benefit had enough epochs to pay off, while
+the larger, harder validation-writer set (11 and 16 held-out writers vs. 5 and 4
+in v1) makes the two numbers not a fully like-for-like comparison either. Both
+are real, honest data points; neither is a production number. The take-away that
+*is* solid: at this scale and epoch budget, more data and augmentation are not a
+free lunch — they need the epoch budget (and probably a gentler early-stopping
+patience) to realize their benefit, which this CPU-only environment couldn't
+afford to test further within a reasonable time budget.
+
+![Static branch v2 ROC curve (55 writers, augmented)](images/static_branch_v2_roc.png)
+![Dynamic branch v2 ROC curve (83 writers)](images/dynamic_branch_v2_roc.png)
+
+## Multi-agent reinforcement learning for decision fusion — `06_marl_decision_fusion.ipynb`
+
+A second, independent experiment: instead of a hand-tuned weighted sum or a
+supervised-learned fusion network, can two decentralized agents (one that only
+ever sees the static similarity score, one that only ever sees the dynamic
+similarity score) learn a better combination through cooperative multi-agent RL?
+Implemented as a simplified MADDPG — two decentralized deterministic-policy
+actors (98 parameters total — this is what ships to inference), one centralized
+critic (1,249 parameters, training-time only, discarded before "deployment"),
+shared cooperative reward, CTDE (Centralized Training, Decentralized Execution).
+Trained for 2,000 steps on real similarity scores produced by `checkpoints_real_v2`'s
+static and dynamic branches over held-out CEDAR/MOBISIG writers (96 genuine +
+96 forged static-agent scores, 720 genuine + 720 forged dynamic-agent scores,
+bootstrap-paired into one-shot cooperative episodes).
+
+| Metric | Fixed-weight baseline (0.5 / 0.5) | MARL (learned) |
+|---|---|---|
+| EER | **0.1840** | 0.2505 |
+| ROC-AUC | **0.9111** | 0.8993 |
+| Accuracy @ EER threshold | **0.8160** | 0.7640 |
+
+**MARL did not improve over the fixed-weight baseline.** This is the direct,
+unedited result of the run above — not adjusted or re-run until a better seed
+came out. The most likely explanation, per the notebook's own discussion: with
+only two scalar agents and signals that are both already monotonically related
+to the true label, a simple weighted average is close to optimal, leaving little
+room for a learned nonlinear policy to do better — a legitimate negative result
+common in the MARL literature when a task lacks enough structure to reward
+coordination, not a bug in the implementation. `sigverify.models.fusion.CrossAttentionGatedFusion`
+(trained via ordinary supervised metric learning, see the fusion table above)
+remains the system's production fusion approach.
+
+![MARL vs. fixed-weight baseline ROC comparison](images/marl_vs_baseline_roc.png)
+
 ## Performance & resource metrics
 
 Parameter counts (measured directly via `sum(p.numel() for p in model.parameters())`)

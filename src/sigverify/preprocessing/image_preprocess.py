@@ -92,3 +92,27 @@ def preprocess_signature_image(
         binary = deskew(binary)
     cropped = crop_to_content(binary)
     return resize_and_normalize(cropped, target_size)
+
+
+def random_affine_jitter(
+    image: np.ndarray,
+    rng: np.random.Generator,
+    max_rotation_deg: float = 8.0,
+    max_translate_frac: float = 0.04,
+    max_scale_delta: float = 0.06,
+) -> np.ndarray:
+    """Small random rotation + translation + scale, applied to the denoised grayscale
+    image before binarization. Skilled-forgery training sets are small (CEDAR: 24
+    genuine samples/writer); with too little data and no augmentation, a pretrained
+    CNN's embedding barely moves past epoch 1 before overfitting (see
+    docs/results.md) — this is the standard fix, not a novel trick. Applied only
+    during training, never at evaluation/inference time.
+    """
+    h, w = image.shape[:2]
+    angle = rng.uniform(-max_rotation_deg, max_rotation_deg)
+    scale = 1.0 + rng.uniform(-max_scale_delta, max_scale_delta)
+    center = (w / 2, h / 2)
+    matrix = cv2.getRotationMatrix2D(center, angle, scale)
+    matrix[0, 2] += rng.uniform(-max_translate_frac, max_translate_frac) * w
+    matrix[1, 2] += rng.uniform(-max_translate_frac, max_translate_frac) * h
+    return cv2.warpAffine(image, matrix, (w, h), flags=cv2.INTER_LINEAR, borderValue=255)

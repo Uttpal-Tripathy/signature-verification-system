@@ -26,13 +26,14 @@ from sigverify.utils.config import load_config
 from sigverify.utils.data_utils import safe_batch_size_and_drop_last
 from sigverify.utils.logging import get_logger
 from sigverify.utils.metrics import verification_report
+from sigverify.utils.plotting import plot_roc_curve
 from sigverify.utils.seed import get_device, set_seed
 
 logger = get_logger(__name__)
 
 
 @torch.no_grad()
-def evaluate(model: SiameseCNN, loader: DataLoader, device: torch.device) -> dict:
+def evaluate(model: SiameseCNN, loader: DataLoader, device: torch.device) -> tuple[dict, np.ndarray, np.ndarray]:
     model.eval()
     genuine_scores, forgery_scores = [], []
     for anchor, positive, negative in loader:
@@ -43,7 +44,7 @@ def evaluate(model: SiameseCNN, loader: DataLoader, device: torch.device) -> dic
         forgery_scores.append(model.similarity(e_a, e_n).cpu().numpy())
     genuine = (np.concatenate(genuine_scores) + 1) / 2  # map cosine [-1,1] -> [0,1] for EER
     forgery = (np.concatenate(forgery_scores) + 1) / 2
-    return verification_report(genuine, forgery)
+    return verification_report(genuine, forgery), genuine, forgery
 
 
 def main() -> None:
@@ -53,6 +54,7 @@ def main() -> None:
     parser.add_argument("--output", default="checkpoints")
     parser.add_argument("--epochs", type=int, default=None)
     parser.add_argument("--cache-in-memory", action="store_true", help="Preprocess each image once and cache it in RAM instead of re-denoising every epoch — worthwhile whenever the dataset is small enough to fit (a few thousand images)")
+    parser.add_argument("--augment", action="store_true", help="Apply random rotation/translation/scale jitter to training images each epoch (not validation) — reduces overfitting on small per-writer sample counts")
     args = parser.parse_args()
 
     cfg = load_config(args.config)
@@ -63,7 +65,7 @@ def main() -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     train_writers, val_writers = split_writers(args.manifest, val_fraction=0.2, seed=cfg.seed)
-    train_ds = StaticSignatureTripletDataset(args.manifest, target_size=tuple(cfg.preprocessing.image.target_size), writer_ids=train_writers, cache_in_memory=args.cache_in_memory)
+    train_ds = StaticSignatureTripletDataset(args.manifest, target_size=tuple(cfg.preprocessing.image.target_size), writer_ids=train_writers, cache_in_memory=args.cache_in_memory, augment=args.augment)
     val_ds = StaticSignatureTripletDataset(args.manifest, target_size=tuple(cfg.preprocessing.image.target_size), writer_ids=val_writers, cache_in_memory=args.cache_in_memory)
     train_batch_size, train_drop_last = safe_batch_size_and_drop_last(len(train_ds), cfg.training.batch_size)
     val_batch_size, _ = safe_batch_size_and_drop_last(len(val_ds), cfg.training.batch_size)
@@ -108,7 +110,7 @@ def main() -> None:
             running_loss += loss.item()
         scheduler.step()
 
-        metrics = evaluate(model, val_loader, device)
+        metrics, val_genuine, val_forgery = evaluate(model, val_loader, device)
         logger.info(
             "epoch %d | train_loss=%.4f | val_eer=%.4f | val_auc=%.4f | val_acc@eer=%.4f",
             epoch, running_loss / max(1, len(train_loader)), metrics["eer"], metrics["roc_auc"], metrics["accuracy_at_eer_threshold"],
@@ -118,7 +120,8 @@ def main() -> None:
             best_eer = metrics["eer"]
             patience_left = cfg.training.early_stopping_patience
             torch.save(model.state_dict(), output_dir / "static_branch.pt")
-            logger.info("New best EER=%.4f — checkpoint saved", best_eer)
+            plot_roc_curve(val_genuine, val_forgery, f"Static branch ROC (epoch {epoch}, {len(val_writers)} val writers)", output_dir / "static_branch_roc.png")
+            logger.info("New best EER=%.4f — checkpoint + ROC curve saved", best_eer)
         else:
             patience_left -= 1
             if patience_left <= 0:

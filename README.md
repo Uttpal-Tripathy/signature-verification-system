@@ -172,15 +172,18 @@ datasets (no Kaggle auth or gated request form needed — see
 | [`03_train_dynamic_branch.ipynb`](notebooks/03_train_dynamic_branch.ipynb) | Trains the Transformer stroke encoder, attention-weight + DTW-deviation visualizations | MOBISIG (dynamic) |
 | [`04_fusion_and_evaluation.ipynb`](notebooks/04_fusion_and_evaluation.ipynb) | Re-confirms held-out test EER/AUC for both branches, trains the fusion layer, runs the full end-to-end pipeline | CEDAR + MOBISIG + synthetic bridge |
 | [`05_high_accuracy_training_and_evaluation.ipynb`](notebooks/05_high_accuracy_training_and_evaluation.ipynb) | Larger writer count + more epochs; reports skilled-forgery vs. random-forgery accuracy **separately** | CEDAR (static) |
+| [`06_marl_decision_fusion.ipynb`](notebooks/06_marl_decision_fusion.ipynb) | Cooperative multi-agent RL (simplified MADDPG: decentralized actors, centralized critic) learns to combine the two branches' votes; compared honestly against a fixed-weight baseline | CEDAR + MOBISIG (real branch outputs) |
 
-Run them in order — 03 depends on nothing from 02, but 04/05 load checkpoints from
-`notebooks/artifacts/`. Notebooks 01-04 are deliberately scaled down (a handful of
-writers, a few epochs, a lighter backbone) so they finish in minutes on a CPU-only
-machine; 05 trains longer for a more meaningful number. See each notebook's first
-cell for exactly what's reduced and how to scale back up. **On fusion**: CEDAR and
-MOBISIG are two independent datasets with no writer overlap and no shared physical
-signing events, so notebook 04 trains the fusion layer on paired synthetic data as
-a documented bridge — see its markdown cells for the full reasoning.
+Run them in order — 03 depends on nothing from 02, but 04/05/06 load checkpoints
+from `notebooks/artifacts/` or `checkpoints_real_v2/`. Notebooks 01-04 are
+deliberately scaled down (a handful of writers, a few epochs, a lighter backbone)
+so they finish in minutes on a CPU-only machine; 05 trains longer for a more
+meaningful number, and 06 uses the full-scale `checkpoints_real_v2` branches. See
+each notebook's first cell for exactly what's reduced and how to scale back up.
+**On fusion**: CEDAR and MOBISIG are two independent datasets with no writer
+overlap and no shared physical signing events, so notebooks 04 and 06 both bridge
+this with paired/bootstrap-paired synthetic or label-matched sampling — see their
+markdown cells for the full reasoning in each case.
 
 ```bash
 pip install jupyter nbclient ipykernel
@@ -227,6 +230,25 @@ validation split, on real CEDAR/MOBISIG data:
 |---|---|---|---|---|
 | Static branch (CEDAR) | 25 | 0.221 | 0.866 | **77.9%** |
 | Dynamic branch (MOBISIG) | 20 | 0.161 | 0.892 | **83.9%** |
+
+A follow-up experiment retrained both branches on the **full** dataset (55/83
+writers) plus data augmentation, specifically to push accuracy further — the
+honest result was 73.3%/80.1%, *not* an improvement (early stopping cut both
+runs short before augmentation's benefit could pay off; see
+[`docs/results.md`](docs/results.md#v2-full-dataset--data-augmentation--a-real-experiment-an-honest-result)
+for the full writeup and ROC curves). The 25/20-writer checkpoints above remain
+what the live console serves. **No run in this repository has reached 99.5%
+accuracy on skilled-forgery detection** — see `docs/results.md` for why that bar
+is far above what small-scale CPU training on these datasets can realistically
+produce, and what published literature actually reports.
+
+A third experiment, `06_marl_decision_fusion.ipynb`, tried replacing the
+supervised fusion layer with two cooperative RL agents (simplified MADDPG) that
+each see only one branch's similarity score. Reported honestly: it **did not**
+beat a plain fixed-weight (0.5/0.5) baseline — EER 0.2505 vs. 0.1840, accuracy
+76.4% vs. 81.6% — a legitimate negative result the notebook discusses in detail
+rather than hides. `CrossAttentionGatedFusion` remains the production fusion
+approach.
 
 ### Performance & resource metrics
 

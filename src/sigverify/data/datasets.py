@@ -19,10 +19,19 @@ import random
 from pathlib import Path
 
 import cv2
+import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-from sigverify.preprocessing.image_preprocess import preprocess_signature_image
+from sigverify.preprocessing.image_preprocess import (
+    binarize,
+    crop_to_content,
+    denoise,
+    deskew,
+    random_affine_jitter,
+    resize_and_normalize,
+    to_grayscale,
+)
 from sigverify.preprocessing.stroke_preprocess import preprocess_stroke_sequence
 
 
@@ -63,19 +72,37 @@ class StaticSignatureTripletDataset(Dataset):
         impostor_ratio: float = 0.5,
         writer_ids: set[str] | None = None,
         cache_in_memory: bool = False,
+        augment: bool = False,
+        binarize_method: str = "otsu",
+        deskew_enabled: bool = True,
+        denoise_h: int = 10,
+        seed: int = 0,
     ):
         self.records = load_manifest(manifest_path)
         if writer_ids is not None:
             self.records = [r for r in self.records if r["writer_id"] in writer_ids]
         self.target_size = target_size
         self.impostor_ratio = impostor_ratio
-        # Denoising dominates preprocessing cost (~0.4s/image) and is re-paid on every
-        # __getitem__ call by default, i.e. every epoch. For datasets small enough to
-        # fit in RAM (a few thousand images), caching the preprocessed tensor after
-        # its first load turns every epoch after the first into pure compute — a large
-        # speedup with no effect on what the model sees (identical output).
+        self.binarize_method = binarize_method
+        self.deskew_enabled = deskew_enabled
+        self.denoise_h = denoise_h
+        # Random rotation/translation/scale applied before binarization, each call
+        # freshly reseeded (unlike the cached denoise step below) — the whole point of
+        # augmentation is that the model sees a different jitter of the same signature
+        # every epoch, which is what actually fights the overfitting documented in
+        # docs/results.md (best checkpoint being epoch 1 with too little raw data).
+        # Never applied at evaluation/inference time (only this triplet-training path
+        # uses it).
+        self.augment = augment
+        self._rng = np.random.default_rng(seed)
+        # Denoising dominates preprocessing cost (~0.4-1.6s/image) and is re-paid on
+        # every __getitem__ call by default, i.e. every epoch. Caching the DENOISED
+        # (but not yet binarized/deskewed/augmented) image lets every epoch after the
+        # first skip straight to the cheap steps, while still being compatible with
+        # fresh-per-epoch augmentation (which must run after the cached step, not be
+        # baked into it).
         self.cache_in_memory = cache_in_memory
-        self._image_cache: dict[str, torch.Tensor] = {}
+        self._denoised_cache: dict[str, np.ndarray] = {}
 
         self.by_writer_genuine: dict[str, list[dict]] = {}
         self.by_writer_forged: dict[str, list[dict]] = {}
@@ -91,17 +118,27 @@ class StaticSignatureTripletDataset(Dataset):
     def __len__(self) -> int:
         return len(self.anchors)
 
-    def _load_image(self, path: str) -> torch.Tensor:
-        if self.cache_in_memory and path in self._image_cache:
-            return self._image_cache[path]
+    def _denoised(self, path: str) -> np.ndarray:
+        if self.cache_in_memory and path in self._denoised_cache:
+            return self._denoised_cache[path]
         raw = cv2.imread(path, cv2.IMREAD_UNCHANGED)
         if raw is None:
             raise FileNotFoundError(path)
-        processed = preprocess_signature_image(raw, target_size=self.target_size)
-        tensor = torch.from_numpy(processed).unsqueeze(0)  # (1, H, W)
+        gray = denoise(to_grayscale(raw), h=self.denoise_h)
         if self.cache_in_memory:
-            self._image_cache[path] = tensor
-        return tensor
+            self._denoised_cache[path] = gray
+        return gray
+
+    def _load_image(self, path: str) -> torch.Tensor:
+        gray = self._denoised(path)
+        if self.augment:
+            gray = random_affine_jitter(gray, self._rng)
+        binary = binarize(gray, method=self.binarize_method)
+        if self.deskew_enabled:
+            binary = deskew(binary)
+        cropped = crop_to_content(binary)
+        processed = resize_and_normalize(cropped, self.target_size)
+        return torch.from_numpy(processed).unsqueeze(0)  # (1, H, W)
 
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         anchor_rec = self.anchors[idx]

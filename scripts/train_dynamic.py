@@ -24,13 +24,14 @@ from sigverify.utils.config import load_config
 from sigverify.utils.data_utils import safe_batch_size_and_drop_last
 from sigverify.utils.logging import get_logger
 from sigverify.utils.metrics import verification_report
+from sigverify.utils.plotting import plot_roc_curve
 from sigverify.utils.seed import get_device, set_seed
 
 logger = get_logger(__name__)
 
 
 @torch.no_grad()
-def evaluate(model: DynamicStrokeEncoder, loader: DataLoader, device: torch.device) -> dict:
+def evaluate(model: DynamicStrokeEncoder, loader: DataLoader, device: torch.device) -> tuple[dict, np.ndarray, np.ndarray]:
     model.eval()
     genuine_scores, forgery_scores = [], []
     for anchor, positive, negative in loader:
@@ -42,7 +43,7 @@ def evaluate(model: DynamicStrokeEncoder, loader: DataLoader, device: torch.devi
         forgery_scores.append(model.similarity(e_a, e_n).cpu().numpy())
     genuine = (np.concatenate(genuine_scores) + 1) / 2
     forgery = (np.concatenate(forgery_scores) + 1) / 2
-    return verification_report(genuine, forgery)
+    return verification_report(genuine, forgery), genuine, forgery
 
 
 def main() -> None:
@@ -102,7 +103,7 @@ def main() -> None:
             running_loss += loss.item()
         scheduler.step()
 
-        metrics = evaluate(model, val_loader, device)
+        metrics, val_genuine, val_forgery = evaluate(model, val_loader, device)
         logger.info(
             "epoch %d | train_loss=%.4f | val_eer=%.4f | val_auc=%.4f | val_acc@eer=%.4f",
             epoch, running_loss / max(1, len(train_loader)), metrics["eer"], metrics["roc_auc"], metrics["accuracy_at_eer_threshold"],
@@ -112,7 +113,8 @@ def main() -> None:
             best_eer = metrics["eer"]
             patience_left = cfg.training.early_stopping_patience
             torch.save(model.state_dict(), output_dir / "dynamic_branch.pt")
-            logger.info("New best EER=%.4f — checkpoint saved", best_eer)
+            plot_roc_curve(val_genuine, val_forgery, f"Dynamic branch ROC (epoch {epoch}, {len(val_writers)} val writers)", output_dir / "dynamic_branch_roc.png")
+            logger.info("New best EER=%.4f — checkpoint + ROC curve saved", best_eer)
         else:
             patience_left -= 1
             if patience_left <= 0:

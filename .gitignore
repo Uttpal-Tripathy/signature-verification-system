@@ -38,6 +38,7 @@ data/external/
 *.joblib
 checkpoints/
 checkpoints_real/
+checkpoints_real_v2/
 notebooks/artifacts/
 runs/
 mlruns/
