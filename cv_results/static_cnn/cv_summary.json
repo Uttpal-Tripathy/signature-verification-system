@@ -1,0 +1,71 @@
+{
+  "branch": "static",
+  "variant": "cnn",
+  "folds": 5,
+  "max_writers": 20,
+  "manifest": "data/processed/real/cedar_static_manifest.jsonl",
+  "config": "configs/lightweight_real.yaml",
+  "per_fold": [
+    {
+      "fold": 1,
+      "train_writers": 16,
+      "val_writers": 4,
+      "eer": 0.30208333333333337,
+      "threshold": 0.965965965965966,
+      "far": 0.3125,
+      "frr": 0.2916666666666667,
+      "roc_auc": 0.759982638888889,
+      "accuracy_at_eer_threshold": 0.6979166666666666
+    },
+    {
+      "fold": 2,
+      "train_writers": 16,
+      "val_writers": 4,
+      "eer": 0.265625,
+      "threshold": 0.9729729729729729,
+      "far": 0.2708333333333333,
+      "frr": 0.2604166666666667,
+      "roc_auc": 0.7649739583333334,
+      "accuracy_at_eer_threshold": 0.734375
+    },
+    {
+      "fold": 3,
+      "train_writers": 16,
+      "val_writers": 4,
+      "eer": 0.234375,
+      "threshold": 0.95995995995996,
+      "far": 0.22916666666666666,
+      "frr": 0.23958333333333334,
+      "roc_auc": 0.8539496527777778,
+      "accuracy_at_eer_threshold": 0.765625
+    },
+    {
+      "fold": 4,
+      "train_writers": 16,
+      "val_writers": 4,
+      "eer": 0.26041666666666663,
+      "threshold": 0.9669669669669669,
+      "far": 0.2708333333333333,
+      "frr": 0.25,
+      "roc_auc": 0.8167317708333334,
+      "accuracy_at_eer_threshold": 0.7395833333333334
+    },
+    {
+      "fold": 5,
+      "train_writers": 16,
+      "val_writers": 4,
+      "eer": 0.22916666666666669,
+      "threshold": 0.965965965965966,
+      "far": 0.21875,
+      "frr": 0.23958333333333334,
+      "roc_auc": 0.8237847222222222,
+      "accuracy_at_eer_threshold": 0.7708333333333334
+    }
+  ],
+  "mean_eer": 0.25833333333333336,
+  "std_eer": 0.026062491673326683,
+  "mean_auc": 0.803884548611111,
+  "std_auc": 0.03608045009924889,
+  "mean_accuracy_at_eer": 0.7416666666666667,
+  "std_accuracy_at_eer": 0.026062491673326693
+}

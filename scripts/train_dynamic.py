@@ -52,6 +52,7 @@ def main() -> None:
     parser.add_argument("--config", default="configs/default.yaml")
     parser.add_argument("--output", default="checkpoints")
     parser.add_argument("--epochs", type=int, default=None)
+    parser.add_argument("--encoder", default=None, choices=["transformer", "lstm", "gru", "hybrid"], help="Overrides configs/*.yaml's dynamic_branch.encoder. 'hybrid' = BiLSTM (local stroke dynamics) -> Transformer (global self-attention across the whole stroke)")
     args = parser.parse_args()
 
     cfg = load_config(args.config)
@@ -77,7 +78,7 @@ def main() -> None:
         num_layers=cfg.dynamic_branch.num_layers,
         num_heads=cfg.dynamic_branch.num_heads,
         embedding_dim=cfg.dynamic_branch.embedding_dim,
-        encoder=cfg.dynamic_branch.encoder,
+        encoder=args.encoder or cfg.dynamic_branch.encoder,
         bidirectional=cfg.dynamic_branch.bidirectional,
         dropout=cfg.dynamic_branch.dropout,
     ).to(device)

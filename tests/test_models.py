@@ -49,6 +49,36 @@ def test_dynamic_branch_lstm_forward():
     assert attn.shape == (2, 30)
 
 
+def test_dynamic_branch_hybrid_forward():
+    model = DynamicStrokeEncoder(input_dim=7, hidden_dim=16, num_layers=2, num_heads=2, embedding_dim=24, encoder="hybrid", bidirectional=True)
+    model.eval()
+    seq = torch.rand(2, 30, 7)
+    with torch.no_grad():
+        embedding, attn = model(seq)
+    assert embedding.shape == (2, 24)
+    assert attn.shape == (2, 30)
+    assert torch.allclose(attn.sum(dim=1), torch.ones(2), atol=1e-4)
+
+
+def test_static_branch_hybrid_head_embedding_is_unit_norm():
+    model = SiameseCNN(backbone="mobilenet_v3_large", embedding_dim=32, pretrained=False, head_type="hybrid", head_kwargs={"num_heads": 4, "num_layers": 1, "max_tokens": 64})
+    model.eval()
+    x = torch.rand(2, 1, 128, 128)
+    with torch.no_grad():
+        embedding = model.embed(x)
+    assert embedding.shape == (2, 32)
+    norms = embedding.norm(dim=1)
+    assert torch.allclose(norms, torch.ones_like(norms), atol=1e-4)
+
+
+def test_static_branch_unknown_head_type_raises():
+    try:
+        SiameseCNN(backbone="mobilenet_v3_large", embedding_dim=16, pretrained=False, head_type="bogus")
+        assert False, "expected ValueError"
+    except ValueError:
+        pass
+
+
 def test_fusion_with_and_without_dynamic_modality():
     fusion = CrossAttentionGatedFusion(embedding_dim=16, num_heads=2)
     fusion.eval()

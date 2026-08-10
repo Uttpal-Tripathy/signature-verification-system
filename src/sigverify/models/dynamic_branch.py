@@ -97,6 +97,27 @@ class DynamicStrokeEncoder(nn.Module):
             )
             pooled_dim = hidden_dim * (2 if bidirectional else 1)
             self.pool = AdditiveAttentionPool(pooled_dim)
+        elif encoder == "hybrid":
+            # BiLSTM first (local sequential/velocity dynamics — the right inductive bias
+            # for a short pen stroke, same role a CNN plays for images) feeding a
+            # Transformer encoder (global self-attention across the whole stroke, e.g.
+            # relating a signature's opening flourish to its closing one) — the
+            # BiLSTM+Transformer hybrid pattern used by recent online signature
+            # verification work (see docs/research_gap.md).
+            self.rnn = nn.LSTM(
+                hidden_dim, hidden_dim, num_layers=1, batch_first=True,
+                bidirectional=bidirectional,
+            )
+            rnn_out_dim = hidden_dim * (2 if bidirectional else 1)
+            self.rnn_proj = nn.Linear(rnn_out_dim, hidden_dim)
+            self.pos_encoding = PositionalEncoding(hidden_dim)
+            layer = nn.TransformerEncoderLayer(
+                d_model=hidden_dim, nhead=num_heads, dim_feedforward=hidden_dim * 4,
+                dropout=dropout, batch_first=True, activation="gelu",
+            )
+            self.sequence_encoder = nn.TransformerEncoder(layer, num_layers=max(1, num_layers - 1))
+            self.pool = QueryAttentionPool(hidden_dim, num_heads)
+            pooled_dim = hidden_dim
         else:
             raise ValueError(f"Unknown dynamic encoder: {encoder}")
 
@@ -106,6 +127,11 @@ class DynamicStrokeEncoder(nn.Module):
         """stroke_seq: (B, T, input_dim) -> (embedding (B, D), attention_weights (B, T))"""
         x = self.input_proj(stroke_seq)
         if self.encoder_type == "transformer":
+            x = self.pos_encoding(x)
+            x = self.sequence_encoder(x)
+        elif self.encoder_type == "hybrid":
+            x, _ = self.rnn(x)
+            x = self.rnn_proj(x)
             x = self.pos_encoding(x)
             x = self.sequence_encoder(x)
         else:

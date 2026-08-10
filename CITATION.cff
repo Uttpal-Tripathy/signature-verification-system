@@ -1,0 +1,40 @@
+cff-version: 1.2.0
+message: >-
+  If you use this software or the methodology described in
+  docs/technical_disclosure.md and docs/research_gap.md, please cite it as
+  below. This is a research/engineering project, not a peer-reviewed
+  publication — see docs/results.md for the exact experimental methodology
+  and honest, unrounded results behind every reported number.
+title: >-
+  SIGNUM: A Multi-Modal (Static + Dynamic) Signature Verification System
+  with Cross-Attention Fusion, Cooperative-MARL-Explored Decision Fusion,
+  and Forensic Calibration
+authors:
+  - name: "Uttpal Tripathy"
+repository-code: "https://github.com/Uttpal-Tripathy/signature-verification-system"
+license: Apache-2.0
+type: software
+keywords:
+  - signature verification
+  - biometrics
+  - multi-modal fusion
+  - siamese network
+  - transformer
+  - cross-validation
+  - explainable AI
+  - forensic calibration
+references:
+  - type: article
+    title: "SigNet: Convolutional Siamese Network for Writer Independent Offline Signature Verification"
+    authors:
+      - name: "S. Dey, A. Dutta, J. I. Toledo, S. K. Ghosh, J. Llados, U. Pal"
+    year: 2017
+  - type: article
+    title: "HTCSigNet: A Hybrid Transformer and Convolution Signature Network for offline signature verification"
+    year: 2025
+  - type: article
+    title: "TransOSV: Offline Signature Verification with Transformers"
+    year: 2024
+  - type: article
+    title: "SignatureGuard: hybrid CNN-transformer model for signature verification and identification across Arabic and English datasets"
+    year: 2026

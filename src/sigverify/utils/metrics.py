@@ -51,3 +51,47 @@ def fpr_tpr_curve(genuine_scores: np.ndarray, forgery_scores: np.ndarray) -> tup
     y_true = np.concatenate([np.ones_like(genuine_scores), np.zeros_like(forgery_scores)])
     y_score = np.concatenate([genuine_scores, forgery_scores])
     return roc_curve(y_true, y_score)
+
+
+def confusion_matrix_at_threshold(genuine_scores: np.ndarray, forgery_scores: np.ndarray, threshold: float) -> dict:
+    """Binary confusion matrix at a fixed decision threshold. 'Positive' = genuine
+    (score >= threshold accepts a signature as genuine). Uses whatever threshold the
+    caller passes — typically the EER threshold from `equal_error_rate`, so the matrix
+    is consistent with the EER/AUC numbers reported alongside it.
+    """
+    tp = int((genuine_scores >= threshold).sum())  # genuine correctly accepted
+    fn = int((genuine_scores < threshold).sum())   # genuine wrongly rejected
+    fp = int((forgery_scores >= threshold).sum())  # forgery wrongly accepted
+    tn = int((forgery_scores < threshold).sum())   # forgery correctly rejected
+    return {"tp": tp, "fn": fn, "fp": fp, "tn": tn, "threshold": float(threshold)}
+
+
+def evaluation_matrix(genuine_scores: np.ndarray, forgery_scores: np.ndarray) -> dict:
+    """Full evaluation metrics at the EER threshold: confusion matrix counts plus
+    precision, recall (sensitivity/TPR), specificity (TNR), F1, and FAR/FRR restated
+    as their confusion-matrix-derived equivalents (FAR == FPR, FRR == FNR) — the
+    complete set a paper's results table or a patent disclosure's evaluation section
+    would expect, not just EER/AUC.
+    """
+    eer_stats = equal_error_rate(genuine_scores, forgery_scores)
+    cm = confusion_matrix_at_threshold(genuine_scores, forgery_scores, eer_stats["threshold"])
+    tp, fn, fp, tn = cm["tp"], cm["fn"], cm["fp"], cm["tn"]
+
+    precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+    recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0  # sensitivity / TPR
+    specificity = tn / (tn + fp) if (tn + fp) > 0 else 0.0  # TNR
+    f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
+    accuracy = (tp + tn) / (tp + tn + fp + fn) if (tp + tn + fp + fn) > 0 else 0.0
+
+    return {
+        **cm,
+        "roc_auc": roc_auc(genuine_scores, forgery_scores),
+        "eer": eer_stats["eer"],
+        "precision": precision,
+        "recall": recall,
+        "specificity": specificity,
+        "f1_score": f1,
+        "accuracy": accuracy,
+        "far": fp / (fp + tn) if (fp + tn) > 0 else 0.0,
+        "frr": fn / (fn + tp) if (fn + tp) > 0 else 0.0,
+    }

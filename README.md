@@ -167,7 +167,7 @@ datasets (no Kaggle auth or gated request form needed — see
 
 | Notebook | What it does | Data |
 |---|---|---|
-| [`01_dataset_exploration.ipynb`](notebooks/01_dataset_exploration.ipynb) | Loads both datasets, visualizes genuine-vs-forged pairs, runs the real preprocessing pipeline | CEDAR + MOBISIG |
+| [`01_dataset_exploration.ipynb`](notebooks/01_dataset_exploration.ipynb) | Loads both datasets, visualizes genuine-vs-forged pairs, runs the real preprocessing pipeline, and a full EDA (per-writer sample balance, class balance, image/stroke size distributions) | CEDAR + MOBISIG |
 | [`02_train_static_branch.ipynb`](notebooks/02_train_static_branch.ipynb) | Trains the Siamese CNN, plots loss/EER/AUC, PCA of the embedding space, Grad-CAM | CEDAR (static) |
 | [`03_train_dynamic_branch.ipynb`](notebooks/03_train_dynamic_branch.ipynb) | Trains the Transformer stroke encoder, attention-weight + DTW-deviation visualizations | MOBISIG (dynamic) |
 | [`04_fusion_and_evaluation.ipynb`](notebooks/04_fusion_and_evaluation.ipynb) | Re-confirms held-out test EER/AUC for both branches, trains the fusion layer, runs the full end-to-end pipeline | CEDAR + MOBISIG + synthetic bridge |
@@ -212,13 +212,19 @@ jupyter lab notebooks/
 ## Results
 
 Full methodology, every number, and what it would take to get a production-scale
-number: **[`docs/results.md`](docs/results.md)**. Short version: the quick-demo
-notebooks (5-8 writers, a few epochs) exist to prove the pipeline trains correctly
-on real data, not to claim accuracy — one of them visibly misclassifies a held-out
-skilled forgery, which is *exactly* what an intentionally under-trained checkpoint
-should do. `05_high_accuracy_training_and_evaluation.ipynb` trains further and
-reports skilled-forgery and random-forgery accuracy as two separate, clearly
-labeled numbers rather than one blended figure.
+number: **[`docs/results.md`](docs/results.md)**. It now also includes an
+exploratory data analysis of both datasets (per-writer sample balance, class
+balance, image/stroke size distributions — `notebooks/01_dataset_exploration.ipynb`),
+confusion matrices and full evaluation metrics (precision/recall/specificity/F1/
+FAR/FRR) for every cross-validated model, and a single **performance-comparison
+table listing every model trained in this repository** side by side, at the very
+end of the page. Short version: the quick-demo notebooks (5-8 writers, a few
+epochs) exist to prove the pipeline trains correctly on real data, not to claim
+accuracy — one of them visibly misclassifies a held-out skilled forgery, which is
+*exactly* what an intentionally under-trained checkpoint should do.
+`05_high_accuracy_training_and_evaluation.ipynb` trains further and reports
+skilled-forgery and random-forgery accuracy as two separate, clearly labeled
+numbers rather than one blended figure.
 
 ### Live-product checkpoints (`checkpoints_real/`)
 
@@ -250,6 +256,31 @@ beat a plain fixed-weight (0.5/0.5) baseline — EER 0.2505 vs. 0.1840, accuracy
 rather than hides. `CrossAttentionGatedFusion` remains the production fusion
 approach.
 
+### Cross-validation and hybrid-architecture comparison
+
+Single train/val splits have real variance at these writer counts, so
+`scripts/cross_validate.py` runs writer-disjoint **5-fold cross-validation**
+(every writer held out exactly once) and reports mean ± std, a pooled
+confusion matrix, and full precision/recall/specificity/F1/FAR/FRR — while
+doubling as a paired head-to-head test of new hybrid architectures (CNN
+feature map → Transformer self-attention for the static branch; BiLSTM →
+Transformer for the dynamic branch) against the pre-existing baselines, on
+identical folds:
+
+| Branch | Variant | Mean EER | Mean AUC | Mean Acc. @ EER |
+|---|---|---|---|---|
+| Static (CEDAR) | CNN (baseline) | 0.2583 ± 0.0261 | 0.8039 ± 0.0361 | **74.17%** ± 2.61 |
+| Static (CEDAR) | Hybrid CNN+Transformer | 0.2792 ± 0.0288 | 0.7797 ± 0.0330 | 72.08% ± 2.88 |
+| Dynamic (MOBISIG) | Transformer (baseline) | 0.2461 ± 0.0371 | 0.8291 ± 0.0446 | 75.39% ± 3.71 |
+| Dynamic (MOBISIG) | Hybrid BiLSTM+Transformer | 0.2294 ± 0.0446 | 0.8338 ± 0.0399 | **77.06%** ± 4.46 |
+
+Honest reading: the hybrid **did not** beat the baseline on the static branch
+(consistently worse across all three metrics), but **did** beat it — modestly
+— on the dynamic branch. Full confusion matrices, per-branch reasoning for
+why the two results differ, and the research context behind trying a hybrid
+architecture at all: [`docs/results.md`](docs/results.md#writer-disjoint-k-fold-cross-validation-and-hybrid-architecture-comparison)
+and [`docs/research_gap.md`](docs/research_gap.md).
+
 ### Performance & resource metrics
 
 | Component | Config | Parameters | Checkpoint size |
@@ -275,10 +306,21 @@ costs more than the entire forward+backward pass) in
 [`docs/technical_disclosure.md`](docs/technical_disclosure.md) describes the
 system's candidate points of novelty (the reliability-gated fusion mechanism, the
 closed-loop adversarial forgery augmentation, the dual-signal explainability
-scoring, and others) as a starting point for a patent attorney or a research
-paper's methods section. It is **not** a patent application and doesn't claim to
-be "patent-ready" — that determination requires an actual attorney and a prior-art
+scoring, the hybrid CNN-Transformer / BiLSTM-Transformer embedding heads, and
+others) as a starting point for a patent attorney or a research paper's methods
+section. It is **not** a patent application and doesn't claim to be
+"patent-ready" — that determination requires an actual attorney and a prior-art
 search this repo hasn't done.
+
+[`docs/research_gap.md`](docs/research_gap.md) records what this project checked
+against current (2024-2026) published literature: the closest comparable
+hybrid CNN-Transformer papers (HTCSigNet, TransOSV, SignatureGuard) and what
+they actually report, the specific gaps in the field this project's design
+responds to (writer-dependent evaluation inflating accuracy, unreported
+cross-validation variance, under-explored multi-modal fusion), and a documented
+account of which additional public datasets were investigated and why they
+weren't added (SVC2004's only open mirror is in an incompatible feature format;
+GPDS/BHSig260 remain license-gated).
 
 ## Project layout
 
@@ -290,6 +332,7 @@ search this repo hasn't done.
 │   ├── architecture.md          # pipeline diagrams + design rationale
 │   ├── results.md                # every measured number, methodology, honest caveats
 │   ├── technical_disclosure.md   # research/patent-support technical description
+│   ├── research_gap.md           # literature check, identified gap, dataset-access findings
 │   └── images/                   # plots extracted from the executed notebooks
 ├── notebooks/            # 01-05: train + test on real CEDAR/MOBISIG data
 ├── scripts/              # train_*.py, fit_calibration.py, evaluate.py, run_inference.py,

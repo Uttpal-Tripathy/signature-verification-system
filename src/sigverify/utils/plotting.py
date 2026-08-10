@@ -7,7 +7,7 @@ from pathlib import Path
 
 import numpy as np
 
-from sigverify.utils.metrics import equal_error_rate, fpr_tpr_curve, roc_auc
+from sigverify.utils.metrics import equal_error_rate, evaluation_matrix, fpr_tpr_curve, roc_auc
 
 
 def plot_roc_curve(
@@ -50,6 +50,55 @@ def plot_roc_curve(
     ax.set_ylim(-0.02, 1.02)
 
     if owns_fig:
+        fig.tight_layout()
+        if output_path is not None:
+            fig.savefig(output_path, dpi=150)
+            plt.close(fig)
+    return ax
+
+
+def plot_confusion_matrix(
+    genuine_scores: np.ndarray,
+    forgery_scores: np.ndarray,
+    title: str,
+    output_path: str | Path | None = None,
+    ax=None,
+):
+    """Plots the 2x2 confusion matrix (Genuine/Forged x Accepted/Rejected) at the EER
+    threshold, with counts and row-normalized percentages annotated in each cell.
+    Returns the matplotlib Axes; saves to `output_path` if given.
+    """
+    import matplotlib
+
+    if output_path is not None:
+        matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    metrics = evaluation_matrix(genuine_scores, forgery_scores)
+    tp, fn, fp, tn = metrics["tp"], metrics["fn"], metrics["fp"], metrics["tn"]
+    matrix = np.array([[tp, fn], [fp, tn]])  # rows: actual Genuine/Forged; cols: predicted Accept/Reject
+    row_totals = matrix.sum(axis=1, keepdims=True)
+    row_totals[row_totals == 0] = 1
+    percentages = matrix / row_totals
+
+    owns_fig = ax is None
+    if owns_fig:
+        fig, ax = plt.subplots(figsize=(5.5, 5))
+
+    im = ax.imshow(percentages, cmap="Blues", vmin=0, vmax=1)
+    labels = ["Accepted (predicted genuine)", "Rejected (predicted forged)"]
+    ax.set_xticks([0, 1], labels=labels, rotation=15, ha="right")
+    ax.set_yticks([0, 1], labels=["Actual Genuine", "Actual Forged"])
+    for i in range(2):
+        for j in range(2):
+            ax.text(
+                j, i, f"{matrix[i, j]}\n({percentages[i, j] * 100:.1f}%)",
+                ha="center", va="center",
+                color="white" if percentages[i, j] > 0.5 else "black", fontsize=11,
+            )
+    ax.set_title(f"{title}\n(threshold={metrics['threshold']:.3f}, acc={metrics['accuracy']:.3f}, F1={metrics['f1_score']:.3f})")
+    if owns_fig:
+        fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04, label="Row-normalized fraction")
         fig.tight_layout()
         if output_path is not None:
             fig.savefig(output_path, dpi=150)

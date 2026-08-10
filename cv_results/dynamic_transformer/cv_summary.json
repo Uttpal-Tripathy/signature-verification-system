@@ -1,0 +1,94 @@
+{
+  "branch": "dynamic",
+  "variant": "transformer",
+  "folds": 5,
+  "folds_configured": 5,
+  "max_writers": 20,
+  "manifest": "data/processed/real/mobisig_dynamic_manifest.jsonl",
+  "config": "configs/lightweight_real.yaml",
+  "per_fold": [
+    {
+      "fold": 1,
+      "train_writers": 16,
+      "val_writers": 4,
+      "eer": 0.24722222222222223,
+      "threshold": 0.8958958958958959,
+      "far": 0.25,
+      "frr": 0.24444444444444444,
+      "roc_auc": 0.8491049382716049,
+      "accuracy_at_eer_threshold": 0.7527777777777778
+    },
+    {
+      "fold": 2,
+      "train_writers": 16,
+      "val_writers": 4,
+      "eer": 0.275,
+      "threshold": 0.8688688688688688,
+      "far": 0.2722222222222222,
+      "frr": 0.2777777777777778,
+      "roc_auc": 0.7783333333333333,
+      "accuracy_at_eer_threshold": 0.725
+    },
+    {
+      "fold": 3,
+      "train_writers": 16,
+      "val_writers": 4,
+      "eer": 0.22499999999999998,
+      "threshold": 0.933933933933934,
+      "far": 0.22777777777777777,
+      "frr": 0.2222222222222222,
+      "roc_auc": 0.8512037037037037,
+      "accuracy_at_eer_threshold": 0.775
+    },
+    {
+      "fold": 4,
+      "train_writers": 16,
+      "val_writers": 4,
+      "eer": 0.2944444444444444,
+      "threshold": 0.933933933933934,
+      "far": 0.3,
+      "frr": 0.28888888888888886,
+      "roc_auc": 0.776574074074074,
+      "accuracy_at_eer_threshold": 0.7055555555555556
+    },
+    {
+      "fold": 5,
+      "train_writers": 16,
+      "val_writers": 4,
+      "eer": 0.18888888888888888,
+      "threshold": 0.9369369369369369,
+      "far": 0.18888888888888888,
+      "frr": 0.18888888888888888,
+      "roc_auc": 0.8901543209876543,
+      "accuracy_at_eer_threshold": 0.8111111111111111
+    }
+  ],
+  "mean_eer": 0.24611111111111109,
+  "std_eer": 0.03712674321467471,
+  "mean_auc": 0.8290740740740741,
+  "std_auc": 0.044615300877585744,
+  "mean_accuracy_at_eer": 0.7538888888888889,
+  "std_accuracy_at_eer": 0.03712674321467471,
+  "pooled_confusion_matrix": {
+    "tp": 665,
+    "fn": 235,
+    "fp": 235,
+    "tn": 665
+  },
+  "pooled_evaluation_matrix": {
+    "tp": 665,
+    "fn": 235,
+    "fp": 235,
+    "tn": 665,
+    "threshold": 0.9209209209209209,
+    "roc_auc": 0.816667901234568,
+    "eer": 0.2611111111111111,
+    "precision": 0.7388888888888889,
+    "recall": 0.7388888888888889,
+    "specificity": 0.7388888888888889,
+    "f1_score": 0.7388888888888889,
+    "accuracy": 0.7388888888888889,
+    "far": 0.2611111111111111,
+    "frr": 0.2611111111111111
+  }
+}

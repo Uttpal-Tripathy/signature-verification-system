@@ -55,6 +55,7 @@ def main() -> None:
     parser.add_argument("--epochs", type=int, default=None)
     parser.add_argument("--cache-in-memory", action="store_true", help="Preprocess each image once and cache it in RAM instead of re-denoising every epoch — worthwhile whenever the dataset is small enough to fit (a few thousand images)")
     parser.add_argument("--augment", action="store_true", help="Apply random rotation/translation/scale jitter to training images each epoch (not validation) — reduces overfitting on small per-writer sample counts")
+    parser.add_argument("--head-type", default="cnn", choices=["cnn", "hybrid"], help="'cnn' = global-average-pool head (default); 'hybrid' = CNN feature map -> Transformer self-attention over spatial tokens -> attention-pooled embedding")
     args = parser.parse_args()
 
     cfg = load_config(args.config)
@@ -77,6 +78,7 @@ def main() -> None:
         backbone=cfg.static_branch.backbone,
         embedding_dim=cfg.static_branch.embedding_dim,
         pretrained=cfg.static_branch.pretrained,
+        head_type=args.head_type,
     ).to(device)
 
     freeze_epochs = cfg.static_branch.freeze_backbone_epochs

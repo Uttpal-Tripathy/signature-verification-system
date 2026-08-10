@@ -51,8 +51,8 @@ flowchart TD
 | Module | Algorithm(s) | Purpose | Code |
 |---|---|---|---|
 | Signature Region Localization | YOLOv8 | Detects/crops the signature region from scanned forms | `localization/yolo_localizer.py` |
-| Static Image Verification | Siamese CNN, contrastive+triplet loss | Visual similarity embedding | `models/static_branch.py`, `models/losses.py` |
-| Dynamic Signature Analysis | LSTM / GRU / Transformer encoder | Stroke-sequence (pressure/velocity/tilt) embedding | `models/dynamic_branch.py` |
+| Static Image Verification | Siamese CNN, contrastive+triplet loss (+ optional hybrid CNN-Transformer head) | Visual similarity embedding | `models/static_branch.py`, `models/losses.py` |
+| Dynamic Signature Analysis | LSTM / GRU / Transformer / hybrid BiLSTM-Transformer encoder | Stroke-sequence (pressure/velocity/tilt) embedding | `models/dynamic_branch.py` |
 | Multi-Modal Fusion | Cross-attention + gated residual, reliability gating | Combines static+dynamic embeddings (**Gap A**) | `models/fusion.py` |
 | Forgery Data Augmentation | CycleGAN, closed-loop retraining | Synthesizes skilled forgeries, retargets verifier failure cases (**Gap C**) | `models/gan_forgery.py` |
 | Explainability | Grad-CAM, attention-weight visualization, SHAP | Heatmaps, stroke-level deviation, modality-contribution split (**Gap B**) | `explainability/*.py` |
@@ -86,11 +86,19 @@ Thresholds (`configs/default.yaml -> decision`):
 - **Siamese CNN over a plain classifier** — signature verification is inherently
   open-set (new writers enroll continuously); a similarity embedding generalizes to
   unseen writers without retraining a classifier head.
-- **Transformer *and* LSTM/GRU as interchangeable dynamic encoders** — the
-  Transformer captures long-range stroke dependencies well with enough data; the
-  bidirectional LSTM/GRU path is kept as a lighter-weight, faster-to-converge
-  fallback for smaller enrolled-writer datasets (swap via `dynamic_branch.encoder` in
-  the config).
+- **Transformer, LSTM/GRU, and a hybrid BiLSTM->Transformer as interchangeable
+  dynamic encoders; a hybrid CNN->Transformer as an alternative static embedding
+  head** — the Transformer captures long-range stroke dependencies well with
+  enough data; the bidirectional LSTM/GRU path is kept as a lighter-weight,
+  faster-to-converge fallback for smaller enrolled-writer datasets; the hybrid
+  options (`encoder="hybrid"` for the dynamic branch, `head_type="hybrid"` for
+  the static branch) add global self-attention on top of a local
+  inductive-bias stage (BiLSTM for stroke sequences, CNN for images) — the
+  pattern several 2024-2026 offline signature verification papers report
+  gains from (see `docs/research_gap.md`), evaluated here head-to-head
+  against the simpler baselines via `scripts/cross_validate.py`. Swap via
+  `dynamic_branch.encoder` in the config, or `--head-type`/`--encoder` on the
+  training scripts.
 - **Cross-attention + reliability gating in fusion, not simple concatenation** — real
   captures are frequently missing a modality (scanned-only signatures have no stroke
   data) or have a degraded one (shaky stylus capture); gating lets the fused

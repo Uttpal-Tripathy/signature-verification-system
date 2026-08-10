@@ -1,0 +1,50 @@
+{
+  "branch": "static",
+  "variant": "cnn",
+  "folds": 1,
+  "folds_configured": 5,
+  "max_writers": 20,
+  "manifest": "data/processed/real/cedar_static_manifest.jsonl",
+  "config": "configs/lightweight_real.yaml",
+  "per_fold": [
+    {
+      "fold": 1,
+      "train_writers": 16,
+      "val_writers": 4,
+      "eer": 0.30208333333333337,
+      "threshold": 0.965965965965966,
+      "far": 0.3125,
+      "frr": 0.2916666666666667,
+      "roc_auc": 0.759982638888889,
+      "accuracy_at_eer_threshold": 0.6979166666666666
+    }
+  ],
+  "mean_eer": 0.30208333333333337,
+  "std_eer": 0.0,
+  "mean_auc": 0.759982638888889,
+  "std_auc": 0.0,
+  "mean_accuracy_at_eer": 0.6979166666666666,
+  "std_accuracy_at_eer": 0.0,
+  "pooled_confusion_matrix": {
+    "tp": 68,
+    "fn": 28,
+    "fp": 30,
+    "tn": 66
+  },
+  "pooled_evaluation_matrix": {
+    "tp": 68,
+    "fn": 28,
+    "fp": 30,
+    "tn": 66,
+    "threshold": 0.965965965965966,
+    "roc_auc": 0.759982638888889,
+    "eer": 0.30208333333333337,
+    "precision": 0.6938775510204082,
+    "recall": 0.7083333333333334,
+    "specificity": 0.6875,
+    "f1_score": 0.7010309278350516,
+    "accuracy": 0.6979166666666666,
+    "far": 0.3125,
+    "frr": 0.2916666666666667
+  }
+}

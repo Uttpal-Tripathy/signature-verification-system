@@ -20,6 +20,26 @@
     "file": "01_04.png"
   },
   {
+    "notebook": "01_dataset_exploration.ipynb",
+    "cell_index": 15,
+    "file": "01_05.png"
+  },
+  {
+    "notebook": "01_dataset_exploration.ipynb",
+    "cell_index": 16,
+    "file": "01_06.png"
+  },
+  {
+    "notebook": "01_dataset_exploration.ipynb",
+    "cell_index": 17,
+    "file": "01_07.png"
+  },
+  {
+    "notebook": "01_dataset_exploration.ipynb",
+    "cell_index": 18,
+    "file": "01_08.png"
+  },
+  {
     "notebook": "02_train_static_branch.ipynb",
     "cell_index": 10,
     "file": "02_01.png"

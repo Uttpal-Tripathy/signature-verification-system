@@ -65,6 +65,21 @@ converter for a new dataset with its own native file layout (CEDAR's
 `original_{writer}_{n}.png` naming, MOBISIG's per-user CSV folders) — see its
 docstring.
 
+### A third dataset was investigated, not just skipped
+
+Before settling on CEDAR + MOBISIG, a third real dataset was actively searched
+for and one candidate was actually downloaded and inspected: **SVC2004 Task 1**
+is genuinely open (Mendeley Data, CC BY 4.0, plain HTTP download via the
+Mendeley public API, no login) — but the specific mirror repackages the raw
+(x, y, pressure, timestamp) point sequences into 36 pre-computed ARFF feature
+vectors per signature, which don't fit this project's sequence-based
+`preprocess_stroke_sequence` pipeline without changing the modeling approach
+entirely. GPDS-960/GPDS-Synthetic and BHSig260 (which would have paired with
+CEDAR as a second static-image dataset) both remain behind an author
+request/license process, with no CC-licensed direct mirror found. See
+[`docs/research_gap.md`](../docs/research_gap.md) §3 for the full record of
+what was checked.
+
 ## Building a manifest for a new dataset
 
 The dataset classes in `sigverify.data.datasets` are manifest-driven (see the

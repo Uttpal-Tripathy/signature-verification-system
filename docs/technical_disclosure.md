@@ -91,17 +91,40 @@ design choices rather than off-the-shelf combinations:
    rendered canvas (static modality) and the raw pointer-event stroke stream —
    x, y, pressure, tilt, timestamp (dynamic modality) — from one physical
    signing gesture, rather than requiring two separate capture steps.
+6. **Selectable hybrid CNN-Transformer / RNN-Transformer embedding heads**
+   (`src/sigverify/models/static_branch.py`'s `HybridEmbeddingHead`,
+   `src/sigverify/models/dynamic_branch.py`'s `encoder="hybrid"`). The static
+   branch can route the CNN backbone's spatial feature map through a
+   Transformer encoder (treating each spatial location as a token) before
+   attention-pooling, instead of a plain global-average-pool head; the
+   dynamic branch can route stroke sequences through a BiLSTM (local
+   pen-dynamics inductive bias) followed by a Transformer (global
+   self-attention across the whole stroke) instead of either alone. Both are
+   selected via a constructor/CLI flag alongside the original heads, not a
+   replacement — `scripts/cross_validate.py` trains both variants on
+   identical writer-disjoint folds for a direct, paired comparison (see
+   `docs/results.md`'s cross-validation table for the measured result, and
+   `docs/research_gap.md` for why this specific hybrid pattern was chosen —
+   it mirrors the CNN+Transformer approach several 2024-2026 offline
+   signature verification papers report gains from).
 
 ## 4. What has and hasn't been validated
 
 - **Validated**: every module above runs, is unit-tested (`tests/`), and has
   been exercised end-to-end on two independent real public datasets (CEDAR,
   MOBISIG — see [`data/README.md`](../data/README.md)) with results in
-  [`docs/results.md`](results.md).
+  [`docs/results.md`](results.md), including writer-disjoint K-fold
+  cross-validation (`scripts/cross_validate.py`, mean +/- std across folds,
+  not a single split) and a paired baseline-vs-hybrid architecture comparison
+  on identical folds.
 - **Not validated**: performance at production scale (full dataset sizes, GPU
   training, the full ResNet50/224px config in `configs/default.yaml`), or
   against modern generative (diffusion/GAN-drawn) forged signatures beyond the
-  CycleGAN augmentation already built in.
+  CycleGAN augmentation already built in. Cross-*dataset* generalization
+  (train on CEDAR, test on a different static-image dataset) specifically has
+  **not** been measured — see `docs/research_gap.md` §3 for why a second
+  compatible static dataset wasn't available this round, and §2 for why that
+  gap matters.
 - **Not done**: any prior-art search, any claims drafting, any filing.
 
 ## 5. Suggested next steps for an actual patent or research submission
@@ -111,7 +134,13 @@ design choices rather than off-the-shelf combinations:
    skilled-forgery and random-forgery accuracy separately (see
    [`docs/results.md`](results.md) for the exact methodology already used at
    small scale — repeat it at full scale).
-2. Have a patent attorney search prior art specifically on items 1-5 above.
+2. Have a patent attorney search prior art specifically on items 1-6 above.
 3. For a research submission, benchmark against at least one published
    baseline on the same dataset split (e.g. SigNet on CEDAR) rather than only
-   reporting this system's own numbers.
+   reporting this system's own numbers — see `docs/research_gap.md` for the
+   closest current published comparisons found (HTCSigNet, TransOSV,
+   SignatureGuard) and why none of them report 99.5%+ either.
+4. Obtain a second static-image dataset through an official (not unofficial
+   mirror) channel — GPDS-960/GPDS-Synthetic or BHSig260 via their authors —
+   to run the cross-dataset generalization test `docs/research_gap.md` §2
+   identifies as unmeasured.

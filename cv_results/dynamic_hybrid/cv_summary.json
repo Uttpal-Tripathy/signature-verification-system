@@ -1,0 +1,94 @@
+{
+  "branch": "dynamic",
+  "variant": "hybrid",
+  "folds": 5,
+  "folds_configured": 5,
+  "max_writers": 20,
+  "manifest": "data/processed/real/mobisig_dynamic_manifest.jsonl",
+  "config": "configs/lightweight_real.yaml",
+  "per_fold": [
+    {
+      "fold": 1,
+      "train_writers": 16,
+      "val_writers": 4,
+      "eer": 0.20277777777777778,
+      "threshold": 0.8948948948948949,
+      "far": 0.2,
+      "frr": 0.20555555555555555,
+      "roc_auc": 0.8632716049382716,
+      "accuracy_at_eer_threshold": 0.7972222222222223
+    },
+    {
+      "fold": 2,
+      "train_writers": 16,
+      "val_writers": 4,
+      "eer": 0.3055555555555556,
+      "threshold": 0.9079079079079079,
+      "far": 0.3055555555555556,
+      "frr": 0.3055555555555556,
+      "roc_auc": 0.7607716049382716,
+      "accuracy_at_eer_threshold": 0.6944444444444444
+    },
+    {
+      "fold": 3,
+      "train_writers": 16,
+      "val_writers": 4,
+      "eer": 0.25,
+      "threshold": 0.9369369369369369,
+      "far": 0.25,
+      "frr": 0.25,
+      "roc_auc": 0.820925925925926,
+      "accuracy_at_eer_threshold": 0.75
+    },
+    {
+      "fold": 4,
+      "train_writers": 16,
+      "val_writers": 4,
+      "eer": 0.2111111111111111,
+      "threshold": 0.9239239239239239,
+      "far": 0.2111111111111111,
+      "frr": 0.2111111111111111,
+      "roc_auc": 0.8641358024691358,
+      "accuracy_at_eer_threshold": 0.7888888888888889
+    },
+    {
+      "fold": 5,
+      "train_writers": 16,
+      "val_writers": 4,
+      "eer": 0.17777777777777778,
+      "threshold": 0.9379379379379379,
+      "far": 0.17777777777777778,
+      "frr": 0.17777777777777778,
+      "roc_auc": 0.8596604938271606,
+      "accuracy_at_eer_threshold": 0.8222222222222222
+    }
+  ],
+  "mean_eer": 0.22944444444444442,
+  "std_eer": 0.04456926915584796,
+  "mean_auc": 0.8337530864197531,
+  "std_auc": 0.039891048655569736,
+  "mean_accuracy_at_eer": 0.7705555555555555,
+  "std_accuracy_at_eer": 0.04456926915584796,
+  "pooled_confusion_matrix": {
+    "tp": 695,
+    "fn": 205,
+    "fp": 206,
+    "tn": 694
+  },
+  "pooled_evaluation_matrix": {
+    "tp": 695,
+    "fn": 205,
+    "fp": 206,
+    "tn": 694,
+    "threshold": 0.91991991991992,
+    "roc_auc": 0.833162962962963,
+    "eer": 0.22833333333333333,
+    "precision": 0.7713651498335183,
+    "recall": 0.7722222222222223,
+    "specificity": 0.7711111111111111,
+    "f1_score": 0.7717934480843976,
+    "accuracy": 0.7716666666666666,
+    "far": 0.2288888888888889,
+    "frr": 0.22777777777777777
+  }
+}

@@ -55,3 +55,34 @@ rather than version number.
   attorney or research write-up — explicitly not a claim of "patent-ready" or a
   performance figure.
 - Standard repo hygiene: `CONTRIBUTING.md`, `SECURITY.md`, issue/PR templates.
+- Training-time data augmentation (`random_affine_jitter`) for the static
+  branch, plus ROC-curve plotting on every new best-EER checkpoint
+  (`src/sigverify/utils/plotting.py`).
+- `notebooks/06_marl_decision_fusion.ipynb`: a from-scratch cooperative
+  multi-agent RL (simplified MADDPG) alternative to the supervised fusion
+  layer, reported honestly against a fixed-weight baseline (it lost).
+- Hybrid embedding heads for both branches — `HybridEmbeddingHead` (CNN
+  feature map → Transformer self-attention over spatial tokens) for the
+  static branch, and `encoder="hybrid"` (BiLSTM → Transformer) for the
+  dynamic branch — selectable alongside the original heads, matching the
+  CNN+Transformer pattern current published signature-verification research
+  uses (`docs/research_gap.md`).
+- `scripts/cross_validate.py`: writer-disjoint K-fold cross-validation
+  (`kfold_writers` in `src/sigverify/data/datasets.py`), doubling as a
+  paired baseline-vs-hybrid architecture comparison on identical folds.
+  Produces mean ± std EER/AUC/accuracy, a pooled confusion matrix, and full
+  evaluation metrics (precision/recall/specificity/F1/FAR/FRR via the new
+  `evaluation_matrix()` in `src/sigverify/utils/metrics.py`) for every run.
+- `docs/research_gap.md`: what current (2024-2026) published literature
+  reports, the specific gaps this project's design responds to, and an
+  honest account of which additional public datasets were investigated and
+  why they weren't added (gated access, or an incompatible pre-engineered
+  feature format in the one genuinely open mirror found).
+- EDA section in `notebooks/01_dataset_exploration.ipynb` and
+  `docs/results.md`: per-writer sample balance, class balance, and image/
+  stroke size distributions for both datasets.
+- A consolidated performance-comparison table at the end of
+  `docs/results.md` listing every model trained in this repository side by
+  side, including where cross-validation caught a single-split number
+  (live-product static, 77.9%) sitting outside its own cross-validated
+  standard deviation.

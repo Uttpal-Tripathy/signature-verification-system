@@ -59,6 +59,40 @@ def split_writers(manifest_path: str | Path, val_fraction: float = 0.2, seed: in
     return train_writers, val_writers
 
 
+def kfold_writers(
+    manifest_path: str | Path, k: int = 5, seed: int = 42, max_writers: int | None = None,
+) -> list[tuple[set[str], set[str]]]:
+    """Writer-disjoint K-fold split: every writer is held out exactly once, so the K
+    (train_writers, val_writers) pairs together cover every writer's EER/AUC/accuracy
+    under an unseen-writer evaluation, and mean +/- std across folds is a far more
+    defensible number than a single arbitrary train/val split (the standard concern with
+    small writer counts: one split's "best" checkpoint can be a lucky or unlucky sample).
+    `max_writers` caps the writer pool (deterministically, after shuffling) to bound
+    training time on CPU-only hardware — state this cap explicitly wherever results using
+    it are reported.
+    """
+    records = load_manifest(manifest_path)
+    writer_ids = sorted({r["writer_id"] for r in records})
+    rng = random.Random(seed)
+    rng.shuffle(writer_ids)
+    if max_writers is not None:
+        writer_ids = writer_ids[:max_writers]
+    if k > len(writer_ids):
+        raise ValueError(f"k={k} folds requested but only {len(writer_ids)} writers available")
+
+    folds: list[list[str]] = [[] for _ in range(k)]
+    for i, writer in enumerate(writer_ids):
+        folds[i % k].append(writer)
+
+    splits = []
+    all_writers = set(writer_ids)
+    for fold in folds:
+        val_writers = set(fold)
+        train_writers = all_writers - val_writers
+        splits.append((train_writers, val_writers))
+    return splits
+
+
 class StaticSignatureTripletDataset(Dataset):
     """Yields (anchor, positive, negative) image triplets: anchor/positive are two
     genuine signatures from the same writer, negative is either a forgery of that
@@ -77,6 +111,7 @@ class StaticSignatureTripletDataset(Dataset):
         deskew_enabled: bool = True,
         denoise_h: int = 10,
         seed: int = 0,
+        shared_denoise_cache: dict[str, np.ndarray] | None = None,
     ):
         self.records = load_manifest(manifest_path)
         if writer_ids is not None:
@@ -100,9 +135,13 @@ class StaticSignatureTripletDataset(Dataset):
         # (but not yet binarized/deskewed/augmented) image lets every epoch after the
         # first skip straight to the cheap steps, while still being compatible with
         # fresh-per-epoch augmentation (which must run after the cached step, not be
-        # baked into it).
+        # baked into it). `shared_denoise_cache` lets several dataset instances that draw
+        # from the same underlying image pool (e.g. one per fold in k-fold
+        # cross-validation, where the same writer's images appear in several folds'
+        # training sets) share one cache by reference instead of each re-denoising the
+        # same files from scratch.
         self.cache_in_memory = cache_in_memory
-        self._denoised_cache: dict[str, np.ndarray] = {}
+        self._denoised_cache: dict[str, np.ndarray] = shared_denoise_cache if shared_denoise_cache is not None else {}
 
         self.by_writer_genuine: dict[str, list[dict]] = {}
         self.by_writer_forged: dict[str, list[dict]] = {}
