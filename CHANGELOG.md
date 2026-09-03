@@ -128,3 +128,15 @@ rather than version number.
   console authenticates its own same-origin requests automatically via a
   `web/js/config.js` file `api/app.py` regenerates from the current key at
   every startup (gitignored — never committed with a real key baked in).
+- `web/js/animation-engine.js`: a small, dependency-free HTML5 Canvas 2D
+  animation engine (one shared `requestAnimationFrame` loop driving
+  pluggable layers) powering an ambient particle-network background, a
+  radar-style scan sweep across the signature pad while a verification
+  request is in flight, and a decision-reveal particle burst (colored by
+  outcome, with a shake on Forged) timed to the result badge. Fully
+  disabled under `prefers-reduced-motion`.
+- `web/js/toast.js`: animated, auto-dismissing toast notifications —
+  every verification now surfaces its own decision immediately as a
+  severity-colored banner (reusing the same `alert_severity`/
+  `alert_message` the backend already computes), in addition to the Live
+  Monitor feed entry.

@@ -9,6 +9,13 @@
   // see api/app.py's _write_frontend_config) -- empty string when auth is disabled, which
   // the backend also treats as "no key required," so this header is always safe to send.
   const apiHeaders = () => ({ "X-API-Key": window.SIGNUM_API_KEY || "" });
+
+  // ---------------------------------------------------------------- animation engine (web/js/animation-engine.js)
+  const fx = window.SignumFX ? new window.SignumFX.AnimationEngine() : null;
+  if (fx) {
+    fx.addLayer("bg", new window.SignumFX.ParticleNetworkLayer($("bgCanvas")));
+  }
+
   const HUD_STAGES = [
     "REGION LOCALIZATION",
     "PREPROCESSING (denoise / deskew / binarize)",
@@ -230,6 +237,8 @@
     $("resultBlock").hidden = true;
     $("errorBlock").hidden = true;
 
+    if (fx) fx.addLayer("scan", new window.SignumFX.ScanSweepLayer($("padScanCanvas")));
+
     let i = 0;
     const lines = [];
     const addLine = (text, cls) => {
@@ -250,6 +259,7 @@
 
   function finishHud(ok) {
     if (hudTimer) clearInterval(hudTimer);
+    if (fx) fx.removeLayer("scan");
     const hud = $("hudLog");
     const active = hud.querySelector(".hud__line.active");
     if (active) active.classList.replace("active", ok ? "ok" : "err");
@@ -316,8 +326,20 @@
     $("resultBlock").hidden = false;
 
     const badge = $("decisionBadge");
-    badge.className = "result__badge " + r.decision.toLowerCase();
+    badge.className = "result__badge"; // drop any prior decision class first...
+    void badge.offsetWidth;            // ...and force a reflow so badge-reveal/badge-shake
+    badge.classList.add(r.decision.toLowerCase()); // replay even for a repeated identical decision
     $("decisionLabel").textContent = r.decision.toUpperCase();
+
+    if (fx) {
+      const burstColor = r.decision === "Genuine" ? "57,255,136" : r.decision === "Forged" ? "255,56,96" : "255,184,0";
+      fx.addLayer("burst", new window.SignumFX.BurstLayer($("resultBurstCanvas"), { color: burstColor }));
+    }
+    window.SignumToast?.showToast({
+      severity: r.alert_severity || "info",
+      title: r.decision.toUpperCase(),
+      message: r.alert_message || `Combined score ${Number(r.combined_score).toFixed(3)}`,
+    });
 
     const score = clamp01(r.combined_score);
     $("gaugeValue").textContent = score.toFixed(3);

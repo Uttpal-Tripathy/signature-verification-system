@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="css/theme.css" />
 </head>
 <body>
+<canvas id="bgCanvas" class="bg-canvas" aria-hidden="true"></canvas>
 <div class="scanline"></div>
 <div class="grid-bg"></div>
 <div class="vignette"></div>
@@ -111,6 +112,7 @@
 
     <div class="pad-frame">
       <canvas id="mainPadCanvas" class="main-pad" width="900" height="380"></canvas>
+      <canvas id="padScanCanvas" class="pad-scan-canvas" aria-hidden="true"></canvas>
       <div class="pad-frame__corner tl"></div>
       <div class="pad-frame__corner tr"></div>
       <div class="pad-frame__corner bl"></div>
@@ -166,6 +168,7 @@
 
     <div class="result" id="resultBlock" hidden>
       <div class="result__badge" id="decisionBadge">
+        <canvas id="resultBurstCanvas" class="result-burst-canvas" aria-hidden="true"></canvas>
         <span id="decisionLabel">—</span>
       </div>
 
@@ -259,6 +262,8 @@
 </footer>
 
 <script src="js/config.js"></script>
+<script src="js/animation-engine.js"></script>
+<script src="js/toast.js"></script>
 <script src="js/signature-pad.js"></script>
 <script src="js/app.js"></script>
 <script src="js/monitor.js"></script>

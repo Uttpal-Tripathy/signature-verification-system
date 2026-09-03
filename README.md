@@ -90,7 +90,15 @@ deployment, not just in the current browser tab:
   severity-colored entries (info/warning/critical), running counters, and
   optional sound + desktop notifications for anything flagged Review or
   Forged. See `src/sigverify/alerts/` for the classification rules and
-  in-memory pub/sub broker behind it.
+  in-memory pub/sub broker behind it. Your own result also fires an
+  animated, auto-dismissing toast the instant it's back (`web/js/toast.js`).
+- **HTML5 Canvas animation engine** (`web/js/animation-engine.js`) — one
+  shared `requestAnimationFrame` loop drives an ambient particle-network
+  background, a radar-style scan sweep across the pad while a verification
+  is in flight, and a decision-reveal particle burst (green for Genuine,
+  amber for Review, red with a shake for Forged) timed to the result badge.
+  Fully disabled under `prefers-reduced-motion`, falling back to the static
+  CSS background/badge styling.
 
 ```bash
 cp .env.example .env    # see "Configuration (.env)" below
