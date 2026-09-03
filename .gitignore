@@ -22,6 +22,8 @@ dist/
 # Environment / secrets
 .env
 .env.*
+!.env.example
+web/js/config.js
 
 # Datasets & large artifacts (bring your own data locally; never commit it)
 data/raw/

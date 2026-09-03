@@ -69,6 +69,20 @@
       </div>
     </div>
 
+    <div class="camera-wrap">
+      <div class="camera-wrap__label">— or capture with camera —</div>
+      <div class="camera-preview-frame">
+        <video id="refCameraVideo" class="camera-preview" autoplay playsinline muted hidden></video>
+        <canvas id="refCameraCanvas" class="camera-preview" hidden></canvas>
+        <div class="camera-preview__placeholder" id="cameraPlaceholder">CAMERA OFF</div>
+      </div>
+      <div class="camera-actions">
+        <button class="btn btn--ghost" id="cameraStart" type="button">START CAMERA</button>
+        <button class="btn btn--ghost" id="cameraCapture" type="button" hidden>CAPTURE FRAME</button>
+        <button class="btn btn--ghost" id="cameraStop" type="button" hidden>STOP</button>
+      </div>
+    </div>
+
     <div class="toggles">
       <label class="toggle">
         <input type="checkbox" id="toggleLocalize" />
@@ -79,6 +93,11 @@
         <input type="checkbox" id="toggleConfidence" />
         <span class="toggle__track"><span class="toggle__thumb"></span></span>
         <span class="toggle__label">COMPUTE CONFIDENCE INTERVAL (slower)</span>
+      </label>
+      <label class="toggle">
+        <input type="checkbox" id="toggleAutoVerify" checked />
+        <span class="toggle__track"><span class="toggle__thumb"></span></span>
+        <span class="toggle__label">AUTO-VERIFY WHEN SIGNING PAUSES</span>
       </label>
     </div>
   </section>
@@ -118,6 +137,10 @@
       <div class="telemetry__item">
         <span class="telemetry__label">INPUT</span>
         <span class="telemetry__value" id="telInputType">&mdash;</span>
+      </div>
+      <div class="telemetry__item telemetry__item--trend" id="telLiveTrendItem" hidden>
+        <span class="telemetry__label">LIVE MATCH TREND</span>
+        <span class="telemetry__value" id="telLiveTrend">&mdash;</span>
       </div>
     </div>
 
@@ -194,6 +217,39 @@
   </section>
 </main>
 
+<section class="panel panel--monitor" aria-labelledby="monTitle">
+  <div class="panel__head">
+    <h2 id="monTitle">04 // LIVE MONITOR &amp; ALERTS</h2>
+    <div class="monitor__controls">
+      <span class="status-pill status-pill--ghost" id="wsStatusPill">
+        <span class="status-dot" id="wsStatusDot"></span>
+        <span id="wsStatusText">CONNECTING&hellip;</span>
+      </span>
+      <label class="toggle toggle--sm">
+        <input type="checkbox" id="toggleAlertSound" checked />
+        <span class="toggle__track"><span class="toggle__thumb"></span></span>
+        <span class="toggle__label">SOUND</span>
+      </label>
+      <label class="toggle toggle--sm">
+        <input type="checkbox" id="toggleAlertNotify" />
+        <span class="toggle__track"><span class="toggle__thumb"></span></span>
+        <span class="toggle__label">DESKTOP NOTIFY</span>
+      </label>
+    </div>
+  </div>
+
+  <div class="monitor__stats">
+    <div class="monitor__stat"><span class="monitor__stat-value" id="statTotal">0</span><span class="monitor__stat-label">TOTAL EVENTS</span></div>
+    <div class="monitor__stat monitor__stat--ok"><span class="monitor__stat-value" id="statGenuine">0</span><span class="monitor__stat-label">GENUINE</span></div>
+    <div class="monitor__stat monitor__stat--warn"><span class="monitor__stat-value" id="statReview">0</span><span class="monitor__stat-label">REVIEW</span></div>
+    <div class="monitor__stat monitor__stat--crit"><span class="monitor__stat-value" id="statForged">0</span><span class="monitor__stat-label">FORGED</span></div>
+  </div>
+
+  <div class="alert-feed" id="alertFeed">
+    <div class="alert-feed__placeholder" id="alertFeedPlaceholder">NO ALERTS YET &mdash; VERIFICATIONS FROM ANY CLIENT APPEAR HERE IN REAL TIME</div>
+  </div>
+</section>
+
 <footer class="ftr">
   <span>SIGNUM NEURAL FORENSICS ENGINE</span>
   <span class="ftr__sep">·</span>
@@ -202,7 +258,9 @@
   <span id="ftrEndpoint">/api</span>
 </footer>
 
+<script src="js/config.js"></script>
 <script src="js/signature-pad.js"></script>
 <script src="js/app.js"></script>
+<script src="js/monitor.js"></script>
 </body>
 </html>

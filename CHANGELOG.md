@@ -34,6 +34,14 @@ rather than version number.
   checkpoint, so 18 epochs of overfitting on 19 writers reported worse numbers
   than the model had actually achieved mid-training. Fixed with best-checkpoint
   tracking and early stopping — see `docs/results.md` for the corrected numbers.
+- `python api/app.py` crashed with `ModuleNotFoundError: No module named
+  'api'` — running the script directly only puts `api/`'s own directory on
+  `sys.path`, not the repo root that the `"api.app:app"` import string
+  uvicorn re-imports needs. Fixed by inserting the repo root into `sys.path`
+  in the `if __name__ == "__main__":` block before calling `uvicorn.run`.
+- `.gitignore`'s `.env.*` pattern was also silently ignoring `.env.example`
+  (the committed template), which would have kept it out of the repository
+  entirely. Added a `!.env.example` negation.
 
 ### Added
 - Full multi-modal pipeline: YOLOv8 localization, Siamese CNN static branch,
@@ -86,3 +94,37 @@ rather than version number.
   side, including where cross-validation caught a single-split number
   (live-product static, 77.9%) sitting outside its own cross-validated
   standard deviation.
+- Real-time alert system: `src/sigverify/alerts/` classifies every
+  verification into info/warning/critical (Forged → critical, Review or a
+  novel-writer anomaly flag on an otherwise-Genuine decision → warning) and
+  publishes it through an in-memory pub/sub `AlertBroker`. `api/app.py`
+  exposes this over a new `/ws/alerts` WebSocket (live push to every
+  connected client, not just the one that ran the verification) and a
+  `GET /api/alerts/recent` REST fallback/backfill endpoint; `/api/verify`'s
+  response now also carries its own `alert_severity`/`alert_message`.
+- `web/js/monitor.js` + a new "LIVE MONITOR & ALERTS" console panel: a
+  severity-colored, auto-scrolling live feed with running genuine/review/
+  forged counters, optional sound (Web Audio, no asset needed) and desktop
+  notifications for flagged events, and automatic WebSocket reconnect with
+  backoff.
+- `POST /api/verify/live`: a lightweight, dynamic-branch-only similarity
+  endpoint (skips the static CNN/fusion/anomaly/calibration/explainability
+  stages) cheap enough to poll every ~600ms — the web console now shows a
+  live match-trend readout *while the user is still signing*, and
+  auto-triggers the full `/api/verify` call automatically once the pen
+  pauses for ~900ms (debounced; the manual RUN VERIFICATION button still
+  works too).
+- Live camera capture for the reference sample (`getUserMedia` + a capture
+  button) as a third input mode alongside file upload and the mini pad.
+- `.env` / `.env.example` configuration (`python-dotenv`): `SIGVERIFY_CONFIG`,
+  `SIGVERIFY_CHECKPOINTS`, `SIGVERIFY_HOST`/`PORT`/`RELOAD`,
+  `SIGVERIFY_CORS_ORIGINS`, and `SIGVERIFY_API_KEY`. `.env` is gitignored;
+  only the template is committed. `python api/app.py` is now a valid way to
+  launch the server (reads host/port from `.env`), alongside `uvicorn
+  api.app:app`.
+- Optional API-key authentication (`SIGVERIFY_API_KEY`, disabled by default):
+  an `X-API-Key` header on `/api/*` and an `?api_key=` query param on
+  `/ws/alerts`, checked with `secrets.compare_digest`. The bundled web
+  console authenticates its own same-origin requests automatically via a
+  `web/js/config.js` file `api/app.py` regenerates from the current key at
+  every startup (gitignored — never committed with a real key baked in).

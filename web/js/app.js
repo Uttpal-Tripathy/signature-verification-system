@@ -5,6 +5,10 @@
 (() => {
   // Always same-origin: api/app.py mounts this static site and the API on one FastAPI app.
   const API_BASE = "";
+  // Populated by js/config.js (generated server-side from SIGVERIFY_API_KEY at startup,
+  // see api/app.py's _write_frontend_config) -- empty string when auth is disabled, which
+  // the backend also treats as "no key required," so this header is always safe to send.
+  const apiHeaders = () => ({ "X-API-Key": window.SIGNUM_API_KEY || "" });
   const HUD_STAGES = [
     "REGION LOCALIZATION",
     "PREPROCESSING (denoise / deskew / binarize)",
@@ -28,7 +32,11 @@
   const refPad = new SignaturePad($("refPadCanvas"), { strokeColor: "#ff2d95" });
   const mainPad = new SignaturePad($("mainPadCanvas"), {
     strokeColor: "#00fff2",
-    onChange: (tel) => updateTelemetry(tel),
+    onChange: (tel) => {
+      updateTelemetry(tel);
+      pollLiveTrend();
+      scheduleAutoVerify();
+    },
   });
 
   function updateTelemetry(tel) {
@@ -85,11 +93,133 @@
     refreshVerifyEnabled();
   });
 
+  // ---------------------------------------------------------------- reference: live camera capture
+  const cameraVideo = $("refCameraVideo");
+  const cameraCanvas = $("refCameraCanvas");
+  const cameraPlaceholder = $("cameraPlaceholder");
+  let cameraStream = null;
+
+  $("cameraStart").addEventListener("click", async () => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      showError("Camera capture isn't supported in this browser.");
+      return;
+    }
+    try {
+      cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
+      cameraVideo.srcObject = cameraStream;
+      cameraVideo.hidden = false;
+      cameraPlaceholder.hidden = true;
+      $("cameraStart").hidden = true;
+      $("cameraCapture").hidden = false;
+      $("cameraStop").hidden = false;
+    } catch (err) {
+      showError(`Camera unavailable: ${err.message || err}`);
+    }
+  });
+
+  $("cameraCapture").addEventListener("click", () => {
+    cameraCanvas.width = cameraVideo.videoWidth;
+    cameraCanvas.height = cameraVideo.videoHeight;
+    cameraCanvas.getContext("2d").drawImage(cameraVideo, 0, 0);
+    cameraCanvas.toBlob((blob) => {
+      if (!blob) return;
+      state.refSource = { kind: "camera", blob, strokeData: null };
+      previewImg.src = URL.createObjectURL(blob);
+      previewImg.hidden = false;
+      dropInner.hidden = true;
+      refreshVerifyEnabled();
+      stopCamera();
+    }, "image/png");
+  });
+
+  function stopCamera() {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach((track) => track.stop());
+      cameraStream = null;
+    }
+    cameraVideo.hidden = true;
+    cameraPlaceholder.hidden = false;
+    $("cameraStart").hidden = false;
+    $("cameraCapture").hidden = true;
+    $("cameraStop").hidden = true;
+  }
+  $("cameraStop").addEventListener("click", stopCamera);
+
   // ---------------------------------------------------------------- main pad
   $("mainPadClear").addEventListener("click", () => {
     mainPad.clear();
     updateTelemetry(mainPad.getTelemetry());
+    resetLiveTrend();
+    if (autoVerifyTimer) clearTimeout(autoVerifyTimer);
   });
+
+  // ---------------------------------------------------------------- live match trend (while signing)
+  // Cheap, dynamic-branch-only similarity polled while the user is actively drawing —
+  // only meaningful when the reference sample itself has stroke data (i.e. it was
+  // captured via the mini-pad, not uploaded/photographed as a flat image), since an
+  // image alone has nothing for the dynamic branch to compare against.
+  let liveTrendInFlight = false;
+  let liveTrendLastCallAt = 0;
+  const LIVE_TREND_MIN_INTERVAL_MS = 600;
+  const LIVE_TREND_MIN_POINTS = 10;
+
+  function resetLiveTrend() {
+    const item = $("telLiveTrendItem");
+    item.classList.remove("trend-up", "trend-down");
+    delete item.dataset.prevScore;
+    $("telLiveTrend").textContent = "—";
+  }
+
+  async function pollLiveTrend() {
+    const item = $("telLiveTrendItem");
+    if (!state.refSource?.strokeData) {
+      item.hidden = true;
+      return;
+    }
+    item.hidden = false;
+    if (mainPad.points.length < LIVE_TREND_MIN_POINTS) return;
+    const now = performance.now();
+    if (liveTrendInFlight || now - liveTrendLastCallAt < LIVE_TREND_MIN_INTERVAL_MS) return;
+    liveTrendLastCallAt = now;
+    liveTrendInFlight = true;
+    try {
+      const form = new FormData();
+      form.append("reference_stroke", new Blob([JSON.stringify(state.refSource.strokeData)], { type: "application/json" }), "reference_stroke.json");
+      form.append("query_stroke", new Blob([JSON.stringify(mainPad.getStrokeData())], { type: "application/json" }), "query_stroke.json");
+      const resp = await fetch(`${API_BASE}/api/verify/live`, { method: "POST", body: form, headers: apiHeaders() });
+      if (!resp.ok) return;
+      const data = await resp.json();
+      const prev = Number(item.dataset.prevScore || "0");
+      $("telLiveTrend").textContent = data.dynamic_similarity.toFixed(3);
+      item.classList.remove("trend-up", "trend-down");
+      if (data.dynamic_similarity > prev + 0.01) item.classList.add("trend-up");
+      else if (data.dynamic_similarity < prev - 0.01) item.classList.add("trend-down");
+      item.dataset.prevScore = String(data.dynamic_similarity);
+    } catch {
+      // transient network hiccup on a background poll -- not worth surfacing as an error
+    } finally {
+      liveTrendInFlight = false;
+    }
+  }
+
+  // ---------------------------------------------------------------- auto-verify on signature pause
+  // Detects "signature complete" the same way a human would notice it — the pen has
+  // stopped moving for a beat — and runs the full verification automatically, instead
+  // of requiring an explicit button click. Manual RUN VERIFICATION still works too.
+  let autoVerifyTimer = null;
+  const AUTO_VERIFY_DEBOUNCE_MS = 900;
+  const AUTO_VERIFY_MIN_POINTS = 20;
+
+  function scheduleAutoVerify() {
+    if (autoVerifyTimer) clearTimeout(autoVerifyTimer);
+    if (!$("toggleAutoVerify").checked) return;
+    if (!state.refSource || mainPad.isEmpty() || state.verifying) return;
+    autoVerifyTimer = setTimeout(() => {
+      if (!state.verifying && state.refSource && mainPad.points.length >= AUTO_VERIFY_MIN_POINTS) {
+        runVerification();
+      }
+    }, AUTO_VERIFY_DEBOUNCE_MS);
+  }
 
   // ---------------------------------------------------------------- HUD
   let hudTimer = null;
@@ -154,7 +284,7 @@
       form.append("localize", $("toggleLocalize").checked ? "true" : "false");
       form.append("estimate_confidence", $("toggleConfidence").checked ? "true" : "false");
 
-      const resp = await fetch(`${API_BASE}/api/verify`, { method: "POST", body: form });
+      const resp = await fetch(`${API_BASE}/api/verify`, { method: "POST", body: form, headers: apiHeaders() });
       if (!resp.ok) {
         const detail = await safeJson(resp);
         throw new Error(detail?.detail || `HTTP ${resp.status}`);
@@ -246,7 +376,7 @@
     const dot = $("apiStatusDot");
     const text = $("apiStatusText");
     try {
-      const resp = await fetch(`${API_BASE}/api/health`);
+      const resp = await fetch(`${API_BASE}/api/health`, { headers: apiHeaders() });
       const data = await resp.json();
       dot.className = "status-dot online";
       text.textContent = `ONLINE · ${data.device.toUpperCase()}`;

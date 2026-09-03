@@ -314,7 +314,7 @@ body {
 /* ---------- telemetry strip ---------- */
 .telemetry {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
   gap: 10px;
   margin-bottom: 16px;
 }
@@ -327,6 +327,33 @@ body {
 }
 .telemetry__label { display: block; font-size: 0.58rem; letter-spacing: 0.08em; color: var(--text-dim); }
 .telemetry__value { display: block; font-size: 0.95rem; color: var(--cyan-dim); font-weight: 600; margin-top: 3px; }
+.telemetry__item--trend { border-color: var(--border); transition: border-color 0.2s, box-shadow 0.2s; }
+.telemetry__item--trend.trend-up { border-color: var(--green); box-shadow: 0 0 10px var(--green-glow); }
+.telemetry__item--trend.trend-down { border-color: var(--red); box-shadow: 0 0 10px var(--red-glow); }
+
+/* ---------- camera capture ---------- */
+.camera-wrap { margin-bottom: 16px; }
+.camera-wrap__label {
+  text-align: center;
+  font-size: 0.64rem;
+  color: var(--text-dim);
+  letter-spacing: 0.08em;
+  margin-bottom: 8px;
+}
+.camera-preview-frame {
+  position: relative;
+  height: 140px;
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+  background: var(--bg-inset);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.camera-preview { width: 100%; height: 100%; object-fit: cover; }
+.camera-preview__placeholder { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--text-dim); font-size: 0.68rem; letter-spacing: 0.1em; }
+.camera-actions { display: flex; gap: 8px; margin-top: 8px; }
 
 /* ---------- buttons ---------- */
 .btn {
@@ -392,6 +419,70 @@ body {
   box-shadow: 0 0 8px var(--cyan);
 }
 .toggle__label { font-size: 0.68rem; letter-spacing: 0.04em; color: var(--text-mid); }
+.toggle--sm .toggle__track { width: 28px; height: 15px; }
+.toggle--sm .toggle__thumb { width: 11px; height: 11px; }
+.toggle--sm input:checked + .toggle__track .toggle__thumb { transform: translateX(13px); }
+
+/* ---------- live monitor & alerts ---------- */
+.panel--monitor { margin: 0 28px 24px; position: relative; z-index: 2; }
+.monitor__controls { display: flex; align-items: center; gap: 16px; }
+
+.monitor__stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.monitor__stat {
+  background: var(--bg-inset);
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  padding: 12px;
+  text-align: center;
+}
+.monitor__stat-value { display: block; font-family: var(--font-display); font-size: 1.6rem; font-weight: 800; color: var(--text-hi); }
+.monitor__stat-label { display: block; font-size: 0.6rem; letter-spacing: 0.1em; color: var(--text-dim); margin-top: 4px; }
+.monitor__stat--ok .monitor__stat-value { color: var(--green); text-shadow: 0 0 10px var(--green-glow); }
+.monitor__stat--warn .monitor__stat-value { color: var(--amber); }
+.monitor__stat--crit .monitor__stat-value { color: var(--red); text-shadow: 0 0 10px var(--red-glow); }
+
+.alert-feed {
+  max-height: 320px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 8px;
+}
+.alert-feed__placeholder { color: var(--text-dim); font-style: italic; font-size: 0.76rem; text-align: center; padding: 20px; }
+
+.alert-item {
+  display: grid;
+  grid-template-columns: auto 90px 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border-soft);
+  background: var(--bg-inset);
+  font-size: 0.74rem;
+  animation: alert-in 0.3s ease forwards;
+}
+@keyframes alert-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+
+.alert-item__dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.alert-item--info .alert-item__dot { background: var(--cyan-dim); box-shadow: 0 0 6px var(--cyan-dim); }
+.alert-item--warning .alert-item__dot { background: var(--amber); box-shadow: 0 0 6px var(--amber); }
+.alert-item--critical .alert-item__dot { background: var(--red); box-shadow: 0 0 8px var(--red); }
+.alert-item--critical { border-color: var(--red); background: rgba(255, 56, 96, 0.06); }
+.alert-item--warning { border-color: rgba(255, 184, 0, 0.4); }
+
+.alert-item__decision { font-family: var(--font-display); font-size: 0.66rem; letter-spacing: 0.06em; }
+.alert-item--info .alert-item__decision { color: var(--green); }
+.alert-item--warning .alert-item__decision { color: var(--amber); }
+.alert-item--critical .alert-item__decision { color: var(--red); }
+
+.alert-item__message { color: var(--text-mid); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.alert-item__time { color: var(--text-dim); font-size: 0.66rem; white-space: nowrap; }
 
 /* ---------- HUD / pipeline log ---------- */
 .hud {

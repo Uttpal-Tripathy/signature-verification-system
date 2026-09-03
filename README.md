@@ -22,6 +22,7 @@ cyber-themed web console for it.
 - [Architecture](#architecture)
 - [The SIGNUM web console](#the-signum-web-console)
 - [Installation](#installation)
+- [Configuration (.env)](#configuration-env)
 - [Quickstart](#quickstart)
 - [Notebooks — train and test on real data](#notebooks--train-and-test-on-real-data)
 - [Results](#results)
@@ -69,19 +70,39 @@ the design rationale for each choice: [`docs/architecture.md`](docs/architecture
 
 ## The SIGNUM web console
 
-A real-time verification console with a live signature pad (captures both the
-rendered image *and* the raw pointer-event stroke sequence — x/y/pressure/tilt/time
-— from a single signing action), a reference-enrollment panel, and a live HUD that
-walks through each pipeline stage as a request is processed.
+A real-time verification console — point it at two signatures (upload, live pad,
+or camera capture) and it tells you **genuine, forged, or needs manual review**,
+with the full evidence behind that call (per-modality similarity, calibrated
+score, anomaly flag, Grad-CAM heatmap, SHAP modality split) — plus a live,
+multi-client monitoring feed for everything that gets verified anywhere on the
+deployment, not just in the current browser tab:
+
+- **Reference enrollment** — upload a file, sign it on a mini pad, or capture a
+  physical signature with a device camera.
+- **Live capture pad** — records both the rendered image *and* the raw
+  pointer-event stroke sequence (x/y/pressure/tilt/time) from one signing
+  action; shows a live dynamic-branch match trend *while you're still signing*
+  (`/api/verify/live`, dynamic-branch-only so it's cheap enough to poll every
+  ~600ms) and auto-runs the full verification ~900ms after the pen stops
+  moving, no button click required (`RUN VERIFICATION` still works manually).
+- **Live Monitor & Alerts** — every verification, from any client hitting the
+  API, streams in real time (WebSocket, `/ws/alerts`) to a shared feed with
+  severity-colored entries (info/warning/critical), running counters, and
+  optional sound + desktop notifications for anything flagged Review or
+  Forged. See `src/sigverify/alerts/` for the classification rules and
+  in-memory pub/sub broker behind it.
 
 ```bash
+cp .env.example .env    # see "Configuration (.env)" below
 uvicorn api.app:app --reload
+# or: python api/app.py   (reads SIGVERIFY_HOST/PORT from .env)
 # open http://127.0.0.1:8000/
 ```
 
 The console is a self-contained static site (`web/` — vanilla HTML/CSS/JS, no build
 step) served by the same FastAPI app that exposes the API under `/api/*`
-(`/api/verify`, `/api/health`, `/api/audit/verify_chain`). Its visual design — the
+(`/api/verify`, `/api/verify/live`, `/api/health`, `/api/alerts/recent`,
+`/api/audit/verify_chain`) and the `/ws/alerts` WebSocket. Its visual design — the
 color system, HUD/telemetry layout, and gauge components in
 [`web/css/theme.css`](web/css/theme.css) — is original work and a candidate
 starting point if you pursue design protection for the interface; that's a legal
@@ -100,6 +121,36 @@ pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
 
 pip install -e ".[dev]"
 ```
+
+## Configuration (`.env`)
+
+`api/app.py` reads its configuration from environment variables, loaded
+automatically from a `.env` file in the repo root if one exists
+(`python-dotenv`) — real environment variables (CI, containers, `docker run -e`)
+always take precedence over `.env`. Copy the template and adjust as needed:
+
+```bash
+cp .env.example .env
+```
+
+| Variable | Default | What it controls |
+|---|---|---|
+| `SIGVERIFY_CONFIG` | `configs/lightweight_real.yaml` | Model architecture, preprocessing, decision thresholds |
+| `SIGVERIFY_CHECKPOINTS` | `checkpoints_real` | Directory with `static_branch.pt` / `dynamic_branch.pt` / `fusion.pt` / `calibrator.joblib` / `anomaly/*.joblib` |
+| `SIGVERIFY_HOST`, `SIGVERIFY_PORT` | `127.0.0.1`, `8000` | Used by `python api/app.py`; irrelevant if you launch with `uvicorn --host/--port` instead |
+| `SIGVERIFY_RELOAD` | `false` | Auto-reload on code changes — dev only |
+| `SIGVERIFY_CORS_ORIGINS` | *(empty)* | Comma-separated extra allowed origins, only needed if the console is served from somewhere other than this API |
+| `SIGVERIFY_API_KEY` | *(empty = disabled)* | Shared secret required as an `X-API-Key` header on every `/api/*` request and an `?api_key=` query param on `/ws/alerts`, once set — generate one with `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
+
+`.env` is gitignored — only `.env.example` is committed, so nothing you put in
+your local `.env` (including a real API key) ever ends up in the repository.
+The bundled web console picks up the current key automatically: `api/app.py`
+regenerates `web/js/config.js` (also gitignored) from `SIGVERIFY_API_KEY` on
+every startup, and `app.js`/`monitor.js` send it on every request. This key
+gates *programmatic* callers (another service, a script, curl) — it can't hide
+the key from the browser's own user, since a pure client-side app has no way
+to keep a secret from itself; see the comment above `require_api_key()` in
+`api/app.py` for the full reasoning.
 
 ## Quickstart
 
@@ -157,6 +208,7 @@ interval, modality contribution split) and `reports/case_001.json`.
 uvicorn api.app:app --reload
 curl -X POST http://127.0.0.1:8000/api/verify \
   -F "reference_image=@reference.png" -F "query_image=@query.png"
+  # add -H "X-API-Key: <your key>" if SIGVERIFY_API_KEY is set — see "Configuration (.env)"
 ```
 
 ## Notebooks — train and test on real data
@@ -325,7 +377,8 @@ GPDS/BHSig260 remain license-gated).
 ## Project layout
 
 ```
-├── api/                  # FastAPI service (mounts web/ + exposes /api/*)
+├── .env.example          # config template -- copy to .env (gitignored)
+├── api/                  # FastAPI service (mounts web/ + exposes /api/* + /ws/alerts)
 ├── configs/              # default.yaml (full-scale) + lightweight_real.yaml (CPU demo scale)
 ├── data/                 # dataset docs; raw/processed data is git-ignored
 ├── docs/
@@ -344,8 +397,9 @@ GPDS/BHSig260 remain license-gated).
 │   ├── explainability/   # Grad-CAM, attention/DTW deviation, SHAP
 │   ├── data/             # manifest-driven datasets + synthetic demo generator
 │   ├── pipeline/         # end-to-end inference + report generation
+│   ├── alerts/           # verification -> severity classification + live pub/sub broker
 │   └── audit/            # hash-chained audit ledger
-├── tests/                # pytest suite (preprocessing, models, pipeline, audit, metrics)
+├── tests/                # pytest suite (preprocessing, models, pipeline, audit, metrics, API, alerts)
 └── web/                  # SIGNUM console — vanilla HTML/CSS/JS, no build step
 ```
 
